@@ -8,6 +8,9 @@ static func _play_tone(tree: SceneTree, freq: float, duration: float,
 		volume: float = 0.3, wave: String = "square",
 		freq_end: float = -1, layer_freq: float = 0):
 
+	if not tree or not tree.root:
+		return
+
 	var player = AudioStreamPlayer.new()
 	var stream = AudioStreamGenerator.new()
 	stream.mix_rate = 22050

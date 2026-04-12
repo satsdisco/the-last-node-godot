@@ -118,8 +118,8 @@ func _unhandled_input(event):
 				_update_cursor()
 				SFX.menu_move(get_tree())
 			KEY_ENTER, KEY_KP_ENTER, KEY_Z:
-				_activate()
 				SFX.menu_select(get_tree())
+				_activate()
 
 func _update_cursor():
 	cursor_label.position.y = 200 + cursor * 28
