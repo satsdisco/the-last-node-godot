@@ -96,6 +96,11 @@ func _ready():
 	# Invisible walls to keep characters on the street
 	_create_bounds()
 
+	# Pause menu
+	var pause_menu = Node.new()
+	pause_menu.set_script(load("res://scripts/pause_menu.gd"))
+	add_child(pause_menu)
+
 	# Level splash card
 	_show_level_splash("LEVEL 1", "THE GRID", "BLOCK 840,003")
 
@@ -241,7 +246,7 @@ func _create_player(pos: Vector2) -> CharacterBody2D:
 	return p
 
 func _spawn_enemy(pos: Vector2, type: String):
-	# CBDC Enforcer and Boss have their own scripts
+	# Special enemy types with their own scripts
 	if type == "ENFORCER":
 		_spawn_enforcer(pos)
 		return
@@ -251,17 +256,15 @@ func _spawn_enemy(pos: Vector2, type: String):
 
 	var e = CharacterBody2D.new()
 	e.position = pos
-	e.set_script(load("res://scripts/enemy.gd"))
-	e.add_to_group("enemies")
 
-	e.set("enemy_name", type)
+	# Banker has its own script with ranged bill-throwing AI
 	if type == "BANKER":
-		e.set("speed", 60.0)
-		e.set("max_hp", 20)
-		e.set("damage", 4)
-		e.set("attack_range", 70.0)
-		e.set("attack_cooldown", 1.4)
-		e.set("drop_sats", 100)
+		e.set_script(load("res://scripts/enemies/banker.gd"))
+	else:
+		e.set_script(load("res://scripts/enemy.gd"))
+		e.set("enemy_name", type)
+
+	e.add_to_group("enemies")
 
 	# Collision shape
 	var col = CollisionShape2D.new()

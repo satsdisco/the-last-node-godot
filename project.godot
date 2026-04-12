@@ -12,7 +12,7 @@ config_version=5
 
 config/name="THE LAST NODE"
 config/description="Side-scrolling beat-em-up in a dystopian CBDC future. Bitcoin only."
-run/main_scene="res://scenes/levels/test_arena.tscn"
+run/main_scene="res://scenes/ui/title_screen.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
 
 [autoload]
