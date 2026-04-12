@@ -25,6 +25,10 @@ var is_jumping: bool = false
 var jump_z: float = 0.0
 var jump_vz: float = 0.0
 var invuln_until: float = 0.0
+var damage_buff_until: float = 0.0
+var damage_buff_mult: float = 1.0
+var speed_buff_until: float = 0.0
+var speed_buff_mult: float = 1.0
 
 # Grab state
 var grabbed_enemy: Enemy = null
@@ -55,6 +59,12 @@ func _physics_process(delta: float):
 	if grabbed_enemy and (now > grab_until or not is_instance_valid(grabbed_enemy)):
 		release_grab()
 
+	# Expire buffs
+	if now > damage_buff_until:
+		damage_buff_mult = 1.0
+	if now > speed_buff_until:
+		speed_buff_mult = 1.0
+
 	# Movement
 	var input_dir = Vector2.ZERO
 	if Input.is_action_pressed("move_left"):
@@ -71,7 +81,7 @@ func _physics_process(delta: float):
 	if input_dir.length() > 0:
 		input_dir = input_dir.normalized()
 
-	var move_speed = speed * (0.6 if grabbed_enemy else 1.0)
+	var move_speed = speed * speed_buff_mult * (0.6 if grabbed_enemy else 1.0)
 	velocity = input_dir * move_speed
 
 	# Jump
@@ -151,7 +161,7 @@ func try_attack():
 	elif forward:
 		dir_mode = "lunge"
 
-	var dmg = base_damage
+	var dmg = int(base_damage * damage_buff_mult)
 	var range_px = attack_range
 	var slash_color = Color(1, 0.6, 0, 0.8)
 
@@ -381,7 +391,7 @@ func do_super():
 	var flash = ColorRect.new()
 	flash.color = Color(1, 0.6, 0, 0.4)
 	flash.size = Vector2(640, 360)
-	flash.z_index = 9998
+	flash.z_index = 3400
 	var hud = get_tree().root.get_node_or_null("TestArena/HUD")
 	if hud:
 		hud.add_child(flash)
@@ -512,5 +522,13 @@ func _update_visuals():
 		if not child.has_meta("base_y"):
 			child.set_meta("base_y", child.position.y)
 		child.position.y = child.get_meta("base_y") - jump_z
+
+	# Buff color tint
+	if damage_buff_mult > 1.0:
+		modulate = Color(0.5, 1, 0.5)
+	elif speed_buff_mult > 1.0:
+		modulate = Color(1, 1, 0.5)
+	else:
+		modulate = Color.WHITE
 
 	z_index = int(global_position.y)

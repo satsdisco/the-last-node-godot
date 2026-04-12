@@ -1,10 +1,10 @@
 extends StaticBody2D
 class_name Destructible
 
-## Smashable world object — vending machines, checkpoints, billboards.
+## Smashable world object — vending machines, ATMs, checkpoints, crates, billboards.
 ## Attack to break. Drops sats + chance of power-up.
 
-enum PropType { VENDING, CHECKPOINT, BILLBOARD }
+enum PropType { VENDING, CHECKPOINT, BILLBOARD, ATM, CRATE }
 
 @export var prop_type: PropType = PropType.VENDING
 @export var prop_hp: int = 20
@@ -13,65 +13,57 @@ enum PropType { VENDING, CHECKPOINT, BILLBOARD }
 
 var _hp: int
 var _last_hit_time: float = 0
+var _sprite: Sprite2D
+
+# Texture paths for each prop type
+const PROP_TEXTURES = {
+	PropType.VENDING: "res://assets/sprites/props/prop_vending.png",
+	PropType.CHECKPOINT: "res://assets/sprites/props/prop_checkpoint.png",
+	PropType.BILLBOARD: "res://assets/sprites/props/prop_billboard.png",
+	PropType.ATM: "res://assets/sprites/props/prop_atm.png",
+	PropType.CRATE: "res://assets/sprites/props/prop_crate.png",
+}
+
+# Collision shapes (width, height) for each type — foot-level hitbox
+const PROP_COLLISION = {
+	PropType.VENDING: Vector2(50, 12),
+	PropType.CHECKPOINT: Vector2(60, 12),
+	PropType.BILLBOARD: Vector2(20, 8),
+	PropType.ATM: Vector2(70, 12),
+	PropType.CRATE: Vector2(36, 12),
+}
 
 func _ready():
 	_hp = prop_hp
 	add_to_group("destructibles")
 
-	# Collision shape
+	# Collision shape (foot-level for 2.5D depth sorting)
 	var col = CollisionShape2D.new()
 	var shape = RectangleShape2D.new()
-
-	var body_rect: ColorRect
-	var label_text: String
-
-	match prop_type:
-		PropType.VENDING:
-			shape.size = Vector2(28, 12)
-			body_rect = _make_rect(Vector2(28, 48), Color(0.2, 0.33, 0.65))
-			label_text = "CBDC"
-		PropType.CHECKPOINT:
-			shape.size = Vector2(32, 12)
-			body_rect = _make_rect(Vector2(32, 44), Color(0.33, 0.33, 0.47))
-			label_text = "CHKPT"
-		PropType.BILLBOARD:
-			shape.size = Vector2(50, 8)
-			body_rect = _make_rect(Vector2(50, 30), Color(0.13, 0.2, 0.33))
-			label_text = "CBDC"
-
+	shape.size = PROP_COLLISION.get(prop_type, Vector2(32, 12))
 	col.shape = shape
 	add_child(col)
 
-	body_rect.position = Vector2(-body_rect.size.x / 2, -body_rect.size.y - 2)
-	body_rect.name = "Body"
-	add_child(body_rect)
-
-	# White border
-	var border = ColorRect.new()
-	border.color = Color.WHITE
-	border.size = body_rect.size + Vector2(2, 2)
-	border.position = body_rect.position - Vector2(1, 1)
-	border.z_index = -1
-	border.name = "Border"
-	add_child(border)
-
-	# Label
-	var lbl = Label.new()
-	lbl.text = label_text
-	lbl.position = Vector2(-25, -body_rect.size.y - 18)
-	lbl.add_theme_font_size_override("font_size", 9)
-	lbl.add_theme_color_override("font_color", Color.WHITE)
-	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	lbl.size = Vector2(50, 16)
-	add_child(lbl)
+	# Sprite
+	_sprite = Sprite2D.new()
+	var tex = load(PROP_TEXTURES.get(prop_type, ""))
+	if tex:
+		_sprite.texture = tex
+		_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		# Position sprite so its bottom aligns with the collision (feet on ground)
+		_sprite.offset = Vector2(0, -tex.get_height() / 2.0)
+		_sprite.name = "Sprite"
+		add_child(_sprite)
+	else:
+		# Fallback to colored rect if texture missing
+		var fallback = ColorRect.new()
+		fallback.size = Vector2(32, 40)
+		fallback.color = Color(0.3, 0.3, 0.5)
+		fallback.position = Vector2(-16, -42)
+		fallback.name = "Sprite"
+		add_child(fallback)
 
 	z_index = int(global_position.y)
-
-func _make_rect(sz: Vector2, color: Color) -> ColorRect:
-	var r = ColorRect.new()
-	r.size = sz
-	r.color = color
-	return r
 
 func _physics_process(_delta):
 	# Check if player attacked near us
@@ -97,12 +89,10 @@ func take_hit(dmg: int):
 	_hp -= dmg
 
 	# Flash white
-	var body = get_node_or_null("Body")
-	if body:
-		var orig = body.color
-		body.color = Color.WHITE
+	if _sprite:
+		_sprite.modulate = Color.WHITE * 3.0  # Bright flash
 		get_tree().create_timer(0.06).timeout.connect(func():
-			if is_instance_valid(body): body.color = orig
+			if is_instance_valid(_sprite): _sprite.modulate = Color.WHITE
 		)
 
 	SFX.hit(get_tree())
@@ -113,8 +103,15 @@ func take_hit(dmg: int):
 func _shatter():
 	var pos = global_position
 
-	# Debris burst
-	CombatJuice.death_burst(get_parent(), pos + Vector2(0, -20), Color(0.3, 0.4, 0.6))
+	# Debris burst — color matches prop theme
+	var debris_color: Color
+	match prop_type:
+		PropType.VENDING: debris_color = Color(0.15, 0.25, 0.5)
+		PropType.ATM: debris_color = Color(0.2, 0.3, 0.4)
+		PropType.CHECKPOINT: debris_color = Color(0.4, 0.35, 0.3)
+		PropType.CRATE: debris_color = Color(0.5, 0.35, 0.2)
+		PropType.BILLBOARD: debris_color = Color(0.5, 0.15, 0.15)
+	CombatJuice.death_burst(get_parent(), pos + Vector2(0, -20), debris_color)
 
 	# Drop sats
 	Pickup.spawn_sats(get_parent(), pos + Vector2(0, -10), drop_sats)
@@ -137,9 +134,17 @@ static func spawn(parent: Node, pos: Vector2, type: PropType) -> Destructible:
 		PropType.VENDING:
 			d.drop_sats = 300
 			d.drops_power_up = true
+		PropType.ATM:
+			d.drop_sats = 400
+			d.prop_hp = 25
+			d.drops_power_up = true
 		PropType.CHECKPOINT:
 			d.drop_sats = 200
 			d.drops_power_up = false
+		PropType.CRATE:
+			d.drop_sats = 250
+			d.prop_hp = 12
+			d.drops_power_up = true
 		PropType.BILLBOARD:
 			d.drop_sats = 100
 			d.prop_hp = 15

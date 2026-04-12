@@ -57,7 +57,7 @@ func _create_visual():
 			label_text = "COLD STORAGE\nINVINCIBLE 5S"
 		PickupType.LIGHTNING:
 			color = Color(1, 0.93, 0)
-			label_text = "LIGHTNING\n1.3X DMG"
+			label_text = "LIGHTNING\n1.3X SPEED"
 		PickupType.WHITEPAPER:
 			color = Color(1, 1, 1)
 			label_text = "WHITEPAPER\nSCREEN CLEAR"
@@ -140,9 +140,10 @@ func _collect(player: Player):
 			_show_effect(player, "ORANGE PILL\n+25% HP", Color(1, 0.6, 0))
 
 		PickupType.FULL_NODE:
-			# Damage buff would need a buff system — for now just heal
+			player.damage_buff_mult = 1.6
+			player.damage_buff_until = Time.get_ticks_msec() / 1000.0 + 10.0
 			SFX.special(get_tree())
-			_show_effect(player, "FULL NODE\nDAMAGE UP", Color(0, 1, 0.4))
+			_show_effect(player, "FULL NODE\n1.6X DAMAGE 10S", Color(0, 1, 0.4))
 
 		PickupType.COLD_STORAGE:
 			player.invuln_until = Time.get_ticks_msec() / 1000.0 + 5.0
@@ -150,8 +151,10 @@ func _collect(player: Player):
 			_show_effect(player, "COLD STORAGE\nINVINCIBLE", Color(0.4, 0.8, 1))
 
 		PickupType.LIGHTNING:
+			player.speed_buff_mult = 1.3
+			player.speed_buff_until = Time.get_ticks_msec() / 1000.0 + 8.0
 			SFX.special(get_tree())
-			_show_effect(player, "LIGHTNING\nSPEED UP", Color(1, 0.93, 0))
+			_show_effect(player, "LIGHTNING\n1.3X SPEED 8S", Color(1, 0.93, 0))
 
 		PickupType.WHITEPAPER:
 			# Kill all enemies on screen

@@ -72,12 +72,19 @@ func _ready():
 	camera.make_current()
 
 	# Destructible props along the level
-	Destructible.spawn(self, Vector2(250, 310), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(750, 310), Destructible.PropType.CHECKPOINT)
-	Destructible.spawn(self, Vector2(1200, 310), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(1800, 240), Destructible.PropType.BILLBOARD)
-	Destructible.spawn(self, Vector2(2050, 310), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(2500, 310), Destructible.PropType.CHECKPOINT)
+	# Props scattered through the level — mix of fiat oppression and resistance
+	# Placed at back edge of walkway (FLOOR_TOP=275) so they line the street
+	# Billboards behind the walk area since they're tall background props
+	Destructible.spawn(self, Vector2(250, FLOOR_TOP + 2), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(500, FLOOR_TOP + 8), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(750, FLOOR_TOP), Destructible.PropType.CHECKPOINT)
+	Destructible.spawn(self, Vector2(1050, FLOOR_TOP + 2), Destructible.PropType.ATM)
+	Destructible.spawn(self, Vector2(1350, FLOOR_TOP + 8), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(1650, FLOOR_TOP - 10), Destructible.PropType.BILLBOARD)
+	Destructible.spawn(self, Vector2(1900, FLOOR_TOP + 2), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(2200, FLOOR_TOP + 2), Destructible.PropType.ATM)
+	Destructible.spawn(self, Vector2(2500, FLOOR_TOP), Destructible.PropType.CHECKPOINT)
+	Destructible.spawn(self, Vector2(2750, FLOOR_TOP + 8), Destructible.PropType.CRATE)
 
 	# Pre-placed power-ups at key locations
 	Pickup.spawn_power_up(self, Vector2(200, 300), Pickup.PickupType.ORANGE_PILL)
@@ -97,7 +104,7 @@ func _ready():
 	_create_bounds()
 
 	# Pause menu
-	var pause_menu = Node.new()
+	var pause_menu = CanvasLayer.new()
 	pause_menu.set_script(load("res://scripts/pause_menu.gd"))
 	add_child(pause_menu)
 
@@ -249,6 +256,12 @@ func _spawn_enemy(pos: Vector2, type: String):
 	# Special enemy types with their own scripts
 	if type == "ENFORCER":
 		_spawn_enforcer(pos)
+		return
+	if type == "DRONE":
+		_spawn_drone(pos)
+		return
+	if type == "VERIBOT":
+		_spawn_veribot(pos)
 		return
 	if type == "BOSS":
 		_spawn_boss(pos)
@@ -454,6 +467,7 @@ var gate_visual: ColorRect = null
 var _block_tick_timer: float = 0.0
 var _block_height: int = 840000
 var _blink_timer: float = 0.0
+var _level_complete_flag: bool = false
 
 func _process(delta):
 	if not player or not is_instance_valid(player):
@@ -558,12 +572,12 @@ func _setup_encounters():
 			{"type": "KYC", "x": 860, "y": 300},
 			{"type": "KYC", "x": 1150, "y": 260},
 		  ]},
-		# Encounter 3: bigger fight
+		# Encounter 3: bigger fight + drone introduction
 		{ "trigger_x": 1500, "left": 1420, "right": 1900,
 		  "enemies": [
 			{"type": "KYC", "x": 1850, "y": 260},
 			{"type": "BANKER", "x": 1460, "y": 300},
-			{"type": "KYC", "x": 1850, "y": 310},
+			{"type": "DRONE", "x": 1750, "y": 280},
 			{"type": "BANKER", "x": 1460, "y": 270},
 		  ]},
 		# Encounter 4: enforcer introduction
@@ -612,7 +626,7 @@ func _start_encounter(enc: Dictionary):
 	gate_visual.color = Color(1, 0.2, 0.2, 0.3)
 	gate_visual.position = Vector2(gate_right - 4, FLOOR_TOP)
 	gate_visual.size = Vector2(4, FLOOR_BOTTOM - FLOOR_TOP)
-	gate_visual.z_index = 9990
+	gate_visual.z_index = 3000
 	add_child(gate_visual)
 
 	SFX.gate_lock(get_tree())
@@ -804,6 +818,122 @@ func _spawn_boss(pos: Vector2):
 	# Boss announcement
 	_show_announcement("BOSS: THE PRECINCT CAPTAIN")
 
+func _spawn_drone(pos: Vector2):
+	var e = CharacterBody2D.new()
+	e.position = pos
+	e.set_script(load("res://scripts/enemies/compliance_drone.gd"))
+	e.add_to_group("enemies")
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(16, 8)
+	col.shape = shape
+	e.add_child(col)
+
+	var body = ColorRect.new()
+	body.color = Color(0.25, 0.25, 0.3)
+	body.size = Vector2(20, 14)
+	body.position = Vector2(-10, -18)
+	e.add_child(body)
+
+	var eye = ColorRect.new()
+	eye.color = Color(1, 0.1, 0.1)
+	eye.size = Vector2(6, 4)
+	eye.position = Vector2(-3, -14)
+	e.add_child(eye)
+
+	var shadow = ColorRect.new()
+	shadow.color = Color(0, 0, 0, 0.3)
+	shadow.size = Vector2(16, 4)
+	shadow.position = Vector2(-8, -2)
+	shadow.name = "Shadow"
+	e.add_child(shadow)
+
+	var hp_bg = ColorRect.new()
+	hp_bg.color = Color(0.2, 0, 0)
+	hp_bg.size = Vector2(24, 3)
+	hp_bg.position = Vector2(-12, -24)
+	hp_bg.name = "HPBarBG"
+	e.add_child(hp_bg)
+
+	var hp_bar = ColorRect.new()
+	hp_bar.color = Color(1, 0.2, 0.2)
+	hp_bar.size = Vector2(24, 3)
+	hp_bar.position = Vector2(-12, -24)
+	hp_bar.name = "HPBar"
+	e.add_child(hp_bar)
+
+	var lbl = Label.new()
+	lbl.text = "DRONE"
+	lbl.position = Vector2(-18, -32)
+	lbl.add_theme_font_size_override("font_size", 8)
+	lbl.add_theme_color_override("font_color", Color(0.53, 0.67, 1.0))
+	lbl.name = "Label"
+	e.add_child(lbl)
+
+	add_child(e)
+
+func _spawn_veribot(pos: Vector2):
+	var e = CharacterBody2D.new()
+	e.position = pos
+	e.set_script(load("res://scripts/enemies/verification_bot.gd"))
+	e.add_to_group("enemies")
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(24, 10)
+	col.shape = shape
+	e.add_child(col)
+
+	var body = ColorRect.new()
+	body.color = Color(0.35, 0.4, 0.45)
+	body.size = Vector2(28, 44)
+	body.position = Vector2(-14, -48)
+	e.add_child(body)
+
+	var head = ColorRect.new()
+	head.color = Color(0.3, 0.35, 0.4)
+	head.size = Vector2(22, 10)
+	head.position = Vector2(-11, -60)
+	e.add_child(head)
+
+	var screen = ColorRect.new()
+	screen.color = Color(0, 0.6, 0.8)
+	screen.size = Vector2(20, 14)
+	screen.position = Vector2(-10, -42)
+	e.add_child(screen)
+
+	var shadow = ColorRect.new()
+	shadow.color = Color(0, 0, 0, 0.4)
+	shadow.size = Vector2(28, 6)
+	shadow.position = Vector2(-14, -2)
+	shadow.name = "Shadow"
+	e.add_child(shadow)
+
+	var hp_bg = ColorRect.new()
+	hp_bg.color = Color(0.2, 0, 0)
+	hp_bg.size = Vector2(32, 4)
+	hp_bg.position = Vector2(-16, -68)
+	hp_bg.name = "HPBarBG"
+	e.add_child(hp_bg)
+
+	var hp_bar = ColorRect.new()
+	hp_bar.color = Color(1, 0.2, 0.2)
+	hp_bar.size = Vector2(32, 4)
+	hp_bar.position = Vector2(-16, -68)
+	hp_bar.name = "HPBar"
+	e.add_child(hp_bar)
+
+	var lbl = Label.new()
+	lbl.text = "VERIBOT"
+	lbl.position = Vector2(-24, -78)
+	lbl.add_theme_font_size_override("font_size", 9)
+	lbl.add_theme_color_override("font_color", Color(0.53, 0.67, 1.0))
+	lbl.name = "Label"
+	e.add_child(lbl)
+
+	add_child(e)
+
 func _show_announcement(text: String):
 	var hud = get_node_or_null("HUD")
 	if not hud:
@@ -815,7 +945,7 @@ func _show_announcement(text: String):
 	lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.size = Vector2(320, 40)
-	lbl.z_index = 9999
+	lbl.z_index = 3500
 	hud.add_child(lbl)
 
 	var tween = lbl.create_tween()
@@ -832,7 +962,7 @@ func _show_level_splash(level_num: String, level_name: String, block_text: Strin
 	overlay.color = Color(0, 0, 0, 0.85)
 	overlay.position = Vector2(0, 0)
 	overlay.size = Vector2(640, 360)
-	overlay.z_index = 99999
+	overlay.z_index = 4000
 	hud.add_child(overlay)
 
 	# Level number
@@ -843,7 +973,7 @@ func _show_level_splash(level_num: String, level_name: String, block_text: Strin
 	num_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
 	num_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	num_lbl.size = Vector2(400, 40)
-	num_lbl.z_index = 99999
+	num_lbl.z_index = 4000
 	hud.add_child(num_lbl)
 
 	# Level name
@@ -854,7 +984,7 @@ func _show_level_splash(level_num: String, level_name: String, block_text: Strin
 	name_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.size = Vector2(400, 40)
-	name_lbl.z_index = 99999
+	name_lbl.z_index = 4000
 	hud.add_child(name_lbl)
 
 	# Block height
@@ -865,7 +995,7 @@ func _show_level_splash(level_num: String, level_name: String, block_text: Strin
 	block_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
 	block_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	block_lbl.size = Vector2(400, 20)
-	block_lbl.z_index = 99999
+	block_lbl.z_index = 4000
 	hud.add_child(block_lbl)
 
 	# Hint
@@ -876,7 +1006,7 @@ func _show_level_splash(level_num: String, level_name: String, block_text: Strin
 	hint.add_theme_color_override("font_color", Color(0.4, 0.8, 1))
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.size = Vector2(400, 20)
-	hint.z_index = 99999
+	hint.z_index = 4000
 	hud.add_child(hint)
 
 	# Fade out after 2 seconds
@@ -906,7 +1036,7 @@ func _on_player_died():
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.8)
 	overlay.size = Vector2(640, 360)
-	overlay.z_index = 99999
+	overlay.z_index = 4000
 	hud.add_child(overlay)
 
 	var title = Label.new()
@@ -916,7 +1046,7 @@ func _on_player_died():
 	title.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.size = Vector2(400, 40)
-	title.z_index = 99999
+	title.z_index = 4000
 	hud.add_child(title)
 
 	var prompt = Label.new()
@@ -926,7 +1056,7 @@ func _on_player_died():
 	prompt.add_theme_color_override("font_color", Color(0, 1, 0.4))
 	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	prompt.size = Vector2(400, 30)
-	prompt.z_index = 99999
+	prompt.z_index = 4000
 	hud.add_child(prompt)
 
 	# Sats lost
@@ -937,7 +1067,7 @@ func _on_player_died():
 	sats_lbl.add_theme_color_override("font_color", Color(1, 0.8, 0.2))
 	sats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sats_lbl.size = Vector2(400, 20)
-	sats_lbl.z_index = 99999
+	sats_lbl.z_index = 4000
 	hud.add_child(sats_lbl)
 
 func _unhandled_input(event):
@@ -945,13 +1075,20 @@ func _unhandled_input(event):
 		if get_tree().paused:
 			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
 				get_tree().paused = false
-				GameState.reset()
-				get_tree().reload_current_scene()
+				if _level_complete_flag:
+					# Advance to Level 2
+					GameState.completed_levels += 1
+					SFX.menu_select(get_tree())
+					get_tree().change_scene_to_file("res://scenes/levels/level_2.tscn")
+				else:
+					GameState.reset()
+					get_tree().reload_current_scene()
 			elif event.keycode == KEY_ESCAPE:
 				get_tree().paused = false
 				get_tree().quit()
 
 func _on_level_complete():
+	_level_complete_flag = true
 	var hud = get_node_or_null("HUD")
 	if not hud:
 		return
@@ -959,7 +1096,7 @@ func _on_level_complete():
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.85)
 	overlay.size = Vector2(640, 360)
-	overlay.z_index = 99999
+	overlay.z_index = 4000
 	hud.add_child(overlay)
 
 	var title = Label.new()
@@ -969,7 +1106,7 @@ func _on_level_complete():
 	title.add_theme_color_override("font_color", Color(0, 1, 0.4))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.size = Vector2(400, 40)
-	title.z_index = 99999
+	title.z_index = 4000
 	hud.add_child(title)
 
 	var name_lbl = Label.new()
@@ -979,7 +1116,7 @@ func _on_level_complete():
 	name_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.size = Vector2(400, 30)
-	name_lbl.z_index = 99999
+	name_lbl.z_index = 4000
 	hud.add_child(name_lbl)
 
 	# Stats
@@ -995,7 +1132,7 @@ func _on_level_complete():
 		s_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
 		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		s_lbl.size = Vector2(400, 20)
-		s_lbl.z_index = 99999
+		s_lbl.z_index = 4000
 		hud.add_child(s_lbl)
 
 	var prompt = Label.new()
@@ -1005,5 +1142,5 @@ func _on_level_complete():
 	prompt.add_theme_color_override("font_color", Color(0, 1, 0.4))
 	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	prompt.size = Vector2(400, 30)
-	prompt.z_index = 99999
+	prompt.z_index = 4000
 	hud.add_child(prompt)

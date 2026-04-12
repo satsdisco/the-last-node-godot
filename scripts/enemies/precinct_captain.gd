@@ -147,7 +147,7 @@ func _show_command(cmd: String):
 	lbl.global_position = global_position + Vector2(-30, -90)
 	lbl.add_theme_font_size_override("font_size", 14)
 	lbl.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
-	lbl.z_index = 9999
+	lbl.z_index = 3500
 	get_parent().add_child(lbl)
 	var tween = lbl.create_tween()
 	tween.tween_property(lbl, "modulate:a", 0.0, 1.4)
@@ -197,7 +197,7 @@ func _show_text(text: String, color: Color):
 	lbl.add_theme_color_override("font_color", color)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.size = Vector2(100, 40)
-	lbl.z_index = 9999
+	lbl.z_index = 3500
 	get_parent().add_child(lbl)
 	var tween = lbl.create_tween()
 	tween.tween_property(lbl, "modulate:a", 0.0, 1.5)
@@ -219,7 +219,7 @@ func _die():
 	lbl.position = Vector2(200, 140)
 	lbl.add_theme_font_size_override("font_size", 20)
 	lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
-	lbl.z_index = 99999
+	lbl.z_index = 4000
 
 	var hud = get_tree().root.get_node_or_null("TestArena/HUD")
 	if hud:

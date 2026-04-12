@@ -59,62 +59,45 @@ func _ai(now: float):
 		last_taunt_at = now
 		_taunt()
 
-func _throw_bill(target: Node2D, dir: int):
-	var bill = ColorRect.new()
-	bill.color = Color(0, 0.8, 0.3)
-	bill.size = Vector2(10, 5)
+func _throw_bill(_target: Node2D, dir: int):
+	var bill = _BillProjectile.new()
+	bill.dir = dir
+	bill.bill_damage = int(damage * GameState.enemy_dmg_mult())
 	bill.global_position = global_position + Vector2(dir * 10, -20)
 	bill.z_index = int(global_position.y) + 5
 	get_parent().add_child(bill)
 
-	var speed_x = dir * 200.0
-	var target_ref = target
 
-	# Animate the bill flying
-	var timer = get_tree().create_timer(2.0)
-	var tick_fn: Callable
+## Inner class for bill projectile — uses _process for reliable collision
+class _BillProjectile extends ColorRect:
+	var dir: int = 1
+	var bill_damage: int = 4
+	var bill_speed: float = 200.0
+	var lifetime: float = 0.0
 
-	tick_fn = func():
-		if not is_instance_valid(bill):
-			return
-		bill.global_position.x += speed_x * get_process_delta_time()
+	func _ready():
+		color = Color(0, 0.8, 0.3)
+		size = Vector2(10, 5)
 
-		# Check collision with players
+	func _process(delta):
+		lifetime += delta
+		global_position.x += dir * bill_speed * delta
+
+		# Check collision with players — use X and Y separately for 2.5D
 		for p in get_tree().get_nodes_in_group("players"):
 			if not is_instance_valid(p):
 				continue
-			if bill.global_position.distance_to(p.global_position + Vector2(0, -15)) < 18:
+			var dx = abs(global_position.x - p.global_position.x)
+			var dy = abs(global_position.y - (p.global_position.y - 15))
+			if dx < 20 and dy < 24:
 				if p.has_method("take_hit"):
-					p.take_hit(int(damage * GameState.enemy_dmg_mult()), dir)
-				bill.queue_free()
+					p.take_hit(bill_damage, dir)
+				queue_free()
 				return
 
-	# Use process to move the bill
-	bill.set_meta("speed", speed_x)
-	bill.set_meta("timer", 0.0)
-	bill.set_process(true)
-
-	# Simple: just tween it and check collision manually
-	var tween = bill.create_tween()
-	tween.tween_property(bill, "global_position:x", bill.global_position.x + dir * 300, 1.5)
-	tween.tween_callback(bill.queue_free)
-
-	# Collision check via timer
-	var check = func():
-		if not is_instance_valid(bill):
-			return
-		for p in get_tree().get_nodes_in_group("players"):
-			if not is_instance_valid(p):
-				continue
-			if bill.global_position.distance_to(p.global_position + Vector2(0, -15)) < 20:
-				if p.has_method("take_hit"):
-					p.take_hit(int(damage * GameState.enemy_dmg_mult()), dir)
-				bill.queue_free()
-				return
-
-	# Check collision every frame for 1.5 seconds
-	for i in range(30):
-		get_tree().create_timer(i * 0.05).timeout.connect(check)
+		# Auto-expire after 2 seconds
+		if lifetime > 2.0:
+			queue_free()
 
 func _taunt():
 	var text = TAUNTS.pick_random()
