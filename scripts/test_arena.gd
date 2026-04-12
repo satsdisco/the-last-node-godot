@@ -11,53 +11,42 @@ var player: CharacterBody2D
 var camera: Camera2D
 
 func _ready():
-	# Dark background — behind EVERYTHING including parallax
-	var bg = ColorRect.new()
-	bg.color = Color(0.04, 0.055, 0.08)
-	bg.size = Vector2(LEVEL_WIDTH, 360)
-	bg.z_index = -200
-	add_child(bg)
+	# === BACKGROUNDS (manual parallax — more reliable than ParallaxBackground) ===
 
-	# Far skyline parallax — your gorgeous AI-generated cityscape
-	var parallax_bg = ParallaxBackground.new()
-	parallax_bg.z_index = -100
-	add_child(parallax_bg)
-
+	# Skyline — far layer, slow scroll
 	var sky_tex = load("res://assets/backgrounds/bg_skyline_far.png") as Texture2D
 	if sky_tex:
-		var sky_layer = ParallaxLayer.new()
-		sky_layer.motion_scale = Vector2(0.3, 0)
-		sky_layer.motion_mirroring = Vector2(sky_tex.get_width(), 0)
-		parallax_bg.add_child(sky_layer)
-
-		var sky_sprite = Sprite2D.new()
-		sky_sprite.texture = sky_tex
-		sky_sprite.centered = false
-		sky_sprite.position = Vector2(0, 0)
-		sky_layer.add_child(sky_sprite)
+		# Tile the skyline across enough width to never see the edge
+		for sx in range(0, LEVEL_WIDTH + sky_tex.get_width(), sky_tex.get_width()):
+			var sky_sprite = Sprite2D.new()
+			sky_sprite.texture = sky_tex
+			sky_sprite.centered = false
+			sky_sprite.position = Vector2(sx, 0)
+			sky_sprite.z_index = -100
+			sky_sprite.name = "sky_%d" % sx
+			add_child(sky_sprite)
+		_parallax_layers.append({"prefix": "sky_", "factor": 0.3, "count": ceili(float(LEVEL_WIDTH) / sky_tex.get_width()) + 1})
 		print("[Level] Skyline loaded: %dx%d" % [sky_tex.get_width(), sky_tex.get_height()])
 	else:
 		print("[Level] WARNING: bg_skyline_far.png not found!")
 
-	# Mid buildings parallax — CBDC signs, graffiti, fire escapes
+	# Mid buildings — closer layer, faster scroll
 	var mid_tex = load("res://assets/backgrounds/bg_buildings_mid.png") as Texture2D
 	if mid_tex:
-		var mid_layer = ParallaxLayer.new()
-		mid_layer.motion_scale = Vector2(0.5, 0)
-		mid_layer.motion_mirroring = Vector2(mid_tex.get_width(), 0)
-		parallax_bg.add_child(mid_layer)
-
-		var mid_sprite = Sprite2D.new()
-		mid_sprite.texture = mid_tex
-		mid_sprite.centered = false
-		# Bottom-align to floor
-		mid_sprite.position = Vector2(0, FLOOR_TOP - mid_tex.get_height())
-		mid_layer.add_child(mid_sprite)
+		for mx in range(0, LEVEL_WIDTH + mid_tex.get_width(), mid_tex.get_width()):
+			var mid_sprite = Sprite2D.new()
+			mid_sprite.texture = mid_tex
+			mid_sprite.centered = false
+			mid_sprite.position = Vector2(mx, FLOOR_TOP - mid_tex.get_height())
+			mid_sprite.z_index = -80
+			mid_sprite.name = "mid_%d" % mx
+			add_child(mid_sprite)
+		_parallax_layers.append({"prefix": "mid_", "factor": 0.5, "count": ceili(float(LEVEL_WIDTH) / mid_tex.get_width()) + 1})
 		print("[Level] Mid buildings loaded: %dx%d" % [mid_tex.get_width(), mid_tex.get_height()])
 	else:
 		print("[Level] WARNING: bg_buildings_mid.png not found!")
 
-	# Floor — in front of parallax, behind characters
+	# Floor — dark ground strip
 	var floor_rect = ColorRect.new()
 	floor_rect.color = Color(0.07, 0.086, 0.12)
 	floor_rect.position = Vector2(0, FLOOR_TOP)
@@ -376,6 +365,10 @@ func _create_hud():
 	hint.add_theme_color_override("font_color", dim_green)
 	hud.add_child(hint)
 
+# Parallax layers for manual scrolling
+var _parallax_layers: Array = []
+var _last_cam_x: float = 0
+
 # Encounter system
 var encounters: Array = []
 var current_encounter: int = -1
@@ -394,6 +387,18 @@ func _process(delta):
 
 	# Encounter system
 	_check_encounters()
+
+	# Manual parallax scrolling
+	if camera:
+		var cam_x = camera.get_screen_center_position().x
+		var cam_delta = cam_x - _last_cam_x
+		_last_cam_x = cam_x
+		for layer_info in _parallax_layers:
+			var factor = layer_info["factor"]
+			var offset = cam_delta * (1.0 - factor)
+			for child in get_children():
+				if child.name.begins_with(layer_info["prefix"]):
+					child.position.x -= offset
 
 	var hud = get_node_or_null("HUD")
 	if not hud:
