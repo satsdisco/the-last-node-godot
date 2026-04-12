@@ -11,14 +11,16 @@ var player: CharacterBody2D
 var camera: Camera2D
 
 func _ready():
-	# Dark background
+	# Dark background — behind EVERYTHING including parallax
 	var bg = ColorRect.new()
 	bg.color = Color(0.04, 0.055, 0.08)
 	bg.size = Vector2(LEVEL_WIDTH, 360)
+	bg.z_index = -200
 	add_child(bg)
 
 	# Far skyline parallax — your gorgeous AI-generated cityscape
 	var parallax_bg = ParallaxBackground.new()
+	parallax_bg.z_index = -100
 	add_child(parallax_bg)
 
 	var sky_tex = load("res://assets/backgrounds/bg_skyline_far.png") as Texture2D
@@ -55,11 +57,12 @@ func _ready():
 	else:
 		print("[Level] WARNING: bg_buildings_mid.png not found!")
 
-	# Floor
+	# Floor — in front of parallax, behind characters
 	var floor_rect = ColorRect.new()
 	floor_rect.color = Color(0.07, 0.086, 0.12)
 	floor_rect.position = Vector2(0, FLOOR_TOP)
 	floor_rect.size = Vector2(LEVEL_WIDTH, FLOOR_BOTTOM - FLOOR_TOP)
+	floor_rect.z_index = -50
 	add_child(floor_rect)
 
 	# Floor grid lines
