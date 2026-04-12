@@ -99,6 +99,12 @@ func _ready():
 	# HUD
 	_create_hud()
 
+	# Level splash card
+	_show_level_splash("LEVEL 1", "THE GRID", "BLOCK 840,003")
+
+	# Connect player death
+	player.died.connect(_on_player_died)
+
 	print("[TestArena] Ready — WASD to move, Z to attack!")
 
 func _create_player(pos: Vector2) -> CharacterBody2D:
@@ -530,7 +536,13 @@ func _end_encounter():
 	if gate_visual:
 		gate_visual.queue_free()
 		gate_visual = null
-	_show_announcement("AREA CLEAR")
+
+	# Check if this was the last encounter (boss)
+	if current_encounter >= encounters.size() - 1:
+		get_tree().create_timer(1.5).timeout.connect(_on_level_complete)
+		_show_announcement("LEVEL CLEAR")
+	else:
+		_show_announcement("AREA CLEAR")
 
 func _spawn_enforcer(pos: Vector2):
 	var e = CharacterBody2D.new()
@@ -700,15 +712,205 @@ func _spawn_boss(pos: Vector2):
 	_show_announcement("BOSS: THE PRECINCT CAPTAIN")
 
 func _show_announcement(text: String):
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.position = Vector2(200, 100)
+	lbl.position = Vector2(160, 100)
 	lbl.add_theme_font_size_override("font_size", 18)
 	lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.size = Vector2(320, 40)
 	lbl.z_index = 9999
-	add_child(lbl)
+	hud.add_child(lbl)
 
-	# Fade via CanvasLayer so it's screen-fixed
 	var tween = lbl.create_tween()
 	tween.tween_property(lbl, "modulate:a", 0.0, 1.5)
 	tween.tween_callback(lbl.queue_free)
+
+func _show_level_splash(level_num: String, level_name: String, block_text: String):
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
+
+	# Dark overlay
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.85)
+	overlay.position = Vector2(0, 0)
+	overlay.size = Vector2(640, 360)
+	overlay.z_index = 99999
+	hud.add_child(overlay)
+
+	# Level number
+	var num_lbl = Label.new()
+	num_lbl.text = level_num
+	num_lbl.position = Vector2(120, 100)
+	num_lbl.add_theme_font_size_override("font_size", 28)
+	num_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
+	num_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	num_lbl.size = Vector2(400, 40)
+	num_lbl.z_index = 99999
+	hud.add_child(num_lbl)
+
+	# Level name
+	var name_lbl = Label.new()
+	name_lbl.text = level_name
+	name_lbl.position = Vector2(120, 140)
+	name_lbl.add_theme_font_size_override("font_size", 22)
+	name_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.size = Vector2(400, 40)
+	name_lbl.z_index = 99999
+	hud.add_child(name_lbl)
+
+	# Block height
+	var block_lbl = Label.new()
+	block_lbl.text = block_text
+	block_lbl.position = Vector2(120, 175)
+	block_lbl.add_theme_font_size_override("font_size", 12)
+	block_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	block_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	block_lbl.size = Vector2(400, 20)
+	block_lbl.z_index = 99999
+	hud.add_child(block_lbl)
+
+	# Hint
+	var hint = Label.new()
+	hint.text = "ESC / P  PAUSE + HELP"
+	hint.position = Vector2(120, 200)
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.add_theme_color_override("font_color", Color(0.4, 0.8, 1))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.size = Vector2(400, 20)
+	hint.z_index = 99999
+	hud.add_child(hint)
+
+	# Fade out after 2 seconds
+	var tween = overlay.create_tween()
+	tween.tween_interval(1.5)
+	tween.tween_property(overlay, "modulate:a", 0.0, 0.7)
+	tween.parallel().tween_property(num_lbl, "modulate:a", 0.0, 0.7)
+	tween.parallel().tween_property(name_lbl, "modulate:a", 0.0, 0.7)
+	tween.parallel().tween_property(block_lbl, "modulate:a", 0.0, 0.7)
+	tween.parallel().tween_property(hint, "modulate:a", 0.0, 0.7)
+	tween.tween_callback(func():
+		overlay.queue_free()
+		num_lbl.queue_free()
+		name_lbl.queue_free()
+		block_lbl.queue_free()
+		hint.queue_free()
+	)
+
+func _on_player_died():
+	# Death screen
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
+
+	get_tree().paused = true
+
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.8)
+	overlay.size = Vector2(640, 360)
+	overlay.z_index = 99999
+	hud.add_child(overlay)
+
+	var title = Label.new()
+	title.text = "NODE OFFLINE"
+	title.position = Vector2(120, 120)
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.size = Vector2(400, 40)
+	title.z_index = 99999
+	hud.add_child(title)
+
+	var prompt = Label.new()
+	prompt.text = "[ENTER] RETRY    [ESC] QUIT"
+	prompt.position = Vector2(120, 170)
+	prompt.add_theme_font_size_override("font_size", 12)
+	prompt.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt.size = Vector2(400, 30)
+	prompt.z_index = 99999
+	hud.add_child(prompt)
+
+	# Sats lost
+	var sats_lbl = Label.new()
+	sats_lbl.text = "SATS COLLECTED: %s" % _format_sats(GameState.sats)
+	sats_lbl.position = Vector2(120, 200)
+	sats_lbl.add_theme_font_size_override("font_size", 11)
+	sats_lbl.add_theme_color_override("font_color", Color(1, 0.8, 0.2))
+	sats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sats_lbl.size = Vector2(400, 20)
+	sats_lbl.z_index = 99999
+	hud.add_child(sats_lbl)
+
+func _unhandled_input(event):
+	if event is InputEventKey and event.pressed:
+		if get_tree().paused:
+			if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+				get_tree().paused = false
+				GameState.reset()
+				get_tree().reload_current_scene()
+			elif event.keycode == KEY_ESCAPE:
+				get_tree().paused = false
+				get_tree().quit()
+
+func _on_level_complete():
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
+
+	var overlay = ColorRect.new()
+	overlay.color = Color(0, 0, 0, 0.85)
+	overlay.size = Vector2(640, 360)
+	overlay.z_index = 99999
+	hud.add_child(overlay)
+
+	var title = Label.new()
+	title.text = "LEVEL COMPLETE"
+	title.position = Vector2(120, 80)
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.size = Vector2(400, 40)
+	title.z_index = 99999
+	hud.add_child(title)
+
+	var name_lbl = Label.new()
+	name_lbl.text = "THE GRID"
+	name_lbl.position = Vector2(120, 110)
+	name_lbl.add_theme_font_size_override("font_size", 18)
+	name_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_lbl.size = Vector2(400, 30)
+	name_lbl.z_index = 99999
+	hud.add_child(name_lbl)
+
+	# Stats
+	var stats = [
+		"SATS COLLECTED: %s" % _format_sats(GameState.sats),
+		"ENEMIES VALIDATED: %d" % (current_encounter + 1),
+	]
+	for s_idx in range(stats.size()):
+		var s_lbl = Label.new()
+		s_lbl.text = stats[s_idx]
+		s_lbl.position = Vector2(120, 160 + s_idx * 20)
+		s_lbl.add_theme_font_size_override("font_size", 12)
+		s_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
+		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		s_lbl.size = Vector2(400, 20)
+		s_lbl.z_index = 99999
+		hud.add_child(s_lbl)
+
+	var prompt = Label.new()
+	prompt.text = "[ENTER] CONTINUE"
+	prompt.position = Vector2(120, 260)
+	prompt.add_theme_font_size_override("font_size", 12)
+	prompt.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt.size = Vector2(400, 30)
+	prompt.z_index = 99999
+	hud.add_child(prompt)

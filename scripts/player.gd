@@ -333,22 +333,34 @@ func try_super():
 	do_super()
 
 func do_special_1():
-	# Full Validation — parry + stun nearby enemies
+	# Full Validation — parry ring + stun + invincibility
 	_show_move_name("FULL VALIDATION")
 	invuln_until = Time.get_ticks_msec() / 1000.0 + 0.7
+	CombatJuice.hitstop(get_tree(), 0.06)
 
+	# Green expanding parry ring
+	_spawn_ring(Color(0, 1, 0.4, 0.5), 96)
+
+	# Invalid transaction marks on stunned enemies
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy):
 			continue
 		if global_position.distance_to(enemy.global_position) < 96:
 			if enemy.has_method("take_hit"):
 				enemy.take_hit(10, facing)
+			if enemy.has_method("stun"):
+				enemy.stun(800)
 			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(0, 1, 0.4))
+			_spawn_invalid_mark(enemy.global_position + Vector2(0, -40))
 
 func do_special_2():
-	# Broadcast — radial pulse
+	# Broadcast — expanding orange pulse ring
 	_show_move_name("BROADCAST")
-	CombatJuice.shake(get_viewport().get_camera_2d(), 5.0, 0.15)
+	CombatJuice.hitstop(get_tree(), 0.08)
+	CombatJuice.shake(get_viewport().get_camera_2d(), 6.0, 0.2)
+
+	# Orange expanding ring
+	_spawn_ring(Color(1, 0.6, 0, 0.6), 96)
 
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy):
@@ -356,26 +368,84 @@ func do_special_2():
 		if global_position.distance_to(enemy.global_position) < 96:
 			if enemy.has_method("take_hit"):
 				enemy.take_hit(22, facing)
-			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(1, 0.6, 0))
+			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(1, 0.6, 0), 8)
+			CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -30), 22, Color(1, 0.6, 0))
 
 func do_super():
-	# Consensus — sequential hits across all visible enemies
+	# Consensus — screen flash + sequential orbital hits
 	_show_move_name("CONSENSUS")
-	CombatJuice.hitstop(get_tree(), 0.15)
-	CombatJuice.shake(get_viewport().get_camera_2d(), 10.0, 0.3)
+	CombatJuice.hitstop(get_tree(), 0.2)
+	CombatJuice.shake(get_viewport().get_camera_2d(), 12.0, 0.4)
 
+	# Screen flash orange
+	var flash = ColorRect.new()
+	flash.color = Color(1, 0.6, 0, 0.4)
+	flash.size = Vector2(640, 360)
+	flash.z_index = 9998
+	var hud = get_tree().root.get_node_or_null("TestArena/HUD")
+	if hud:
+		hud.add_child(flash)
+		var flash_tween = flash.create_tween()
+		flash_tween.tween_property(flash, "modulate:a", 0.0, 0.3)
+		flash_tween.tween_callback(flash.queue_free)
+
+	# Sequential hits with orange targeting circles
 	var targets = get_tree().get_nodes_in_group("enemies")
 	var i = 0
 	for enemy in targets:
 		if not is_instance_valid(enemy):
 			continue
-		get_tree().create_timer(i * 0.1).timeout.connect(func():
-			if is_instance_valid(enemy) and enemy.has_method("take_hit"):
+		var idx = i
+		get_tree().create_timer(idx * 0.12).timeout.connect(func():
+			if not is_instance_valid(enemy):
+				return
+			# Targeting circle
+			var circle = ColorRect.new()
+			circle.color = Color(1, 0.6, 0, 0.7)
+			circle.size = Vector2(40, 40)
+			circle.global_position = enemy.global_position - Vector2(20, 30)
+			circle.z_index = int(enemy.global_position.y) + 5
+			get_parent().add_child(circle)
+
+			var c_tween = circle.create_tween()
+			c_tween.tween_property(circle, "scale", Vector2(0.2, 0.2), 0.15)
+			c_tween.parallel().tween_property(circle, "modulate:a", 0.0, 0.15)
+			c_tween.tween_callback(circle.queue_free)
+
+			if enemy.has_method("take_hit"):
 				enemy.take_hit(40, facing)
-				CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(1, 0.6, 0))
-				CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -30), 40, Color(1, 0.6, 0))
+			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(1, 0.6, 0), 10)
+			CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -30), 40, Color(1, 0.6, 0))
+			CombatJuice.shake(get_viewport().get_camera_2d(), 4.0, 0.08)
 		)
 		i += 1
+
+func _spawn_ring(color: Color, radius: float):
+	# Expanding ring effect centered on player
+	var ring = ColorRect.new()
+	ring.color = color
+	ring.size = Vector2(16, 16)
+	ring.global_position = global_position - Vector2(8, 16)
+	ring.z_index = int(global_position.y) + 5
+	ring.pivot_offset = Vector2(8, 8)
+	get_parent().add_child(ring)
+
+	var tween = ring.create_tween()
+	tween.tween_property(ring, "scale", Vector2(radius / 8.0, radius / 8.0), 0.3)
+	tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(ring.queue_free)
+
+func _spawn_invalid_mark(pos: Vector2):
+	var mark = Label.new()
+	mark.text = "✗ INVALID"
+	mark.global_position = pos
+	mark.add_theme_font_size_override("font_size", 10)
+	mark.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
+	mark.z_index = 500
+	get_parent().add_child(mark)
+	var tween = mark.create_tween()
+	tween.tween_property(mark, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(mark.queue_free)
 
 func _no_sats_flash():
 	var lbl = Label.new()
