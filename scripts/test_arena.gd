@@ -24,7 +24,7 @@ func _ready():
 	# Layer 3: Foreground buildings — positioned so the street in the art
 	# IS the walkable ground. Bottom of image at y=360 (screen bottom),
 	# characters walk on the street area within the image.
-	_add_parallax_layer("res://assets/backgrounds/synth_foreground_empty.png", -60, 0.6, 360)
+	_add_parallax_layer("res://assets/backgrounds/synth_foreground_themed.png", -60, 0.6, 360)
 
 	# No separate floor rect — the foreground image IS the ground.
 	# Just a subtle darkening strip at the very bottom for depth
