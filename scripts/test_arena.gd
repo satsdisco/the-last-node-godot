@@ -17,32 +17,43 @@ func _ready():
 	bg.size = Vector2(LEVEL_WIDTH, 360)
 	add_child(bg)
 
-	# Far skyline parallax
+	# Far skyline parallax — your gorgeous AI-generated cityscape
 	var parallax_bg = ParallaxBackground.new()
 	add_child(parallax_bg)
 
-	if ResourceLoader.exists("res://assets/backgrounds/bg_skyline_far.png"):
+	var sky_tex = load("res://assets/backgrounds/bg_skyline_far.png") as Texture2D
+	if sky_tex:
 		var sky_layer = ParallaxLayer.new()
 		sky_layer.motion_scale = Vector2(0.3, 0)
-		sky_layer.motion_mirroring = Vector2(540, 0)
+		sky_layer.motion_mirroring = Vector2(sky_tex.get_width(), 0)
 		parallax_bg.add_child(sky_layer)
 
 		var sky_sprite = Sprite2D.new()
-		sky_sprite.texture = load("res://assets/backgrounds/bg_skyline_far.png")
-		sky_sprite.position = Vector2(270, 180)
+		sky_sprite.texture = sky_tex
+		sky_sprite.centered = false
+		sky_sprite.position = Vector2(0, 0)
 		sky_layer.add_child(sky_sprite)
+		print("[Level] Skyline loaded: %dx%d" % [sky_tex.get_width(), sky_tex.get_height()])
+	else:
+		print("[Level] WARNING: bg_skyline_far.png not found!")
 
-	# Mid buildings parallax
-	if ResourceLoader.exists("res://assets/backgrounds/bg_buildings_mid.png"):
+	# Mid buildings parallax — CBDC signs, graffiti, fire escapes
+	var mid_tex = load("res://assets/backgrounds/bg_buildings_mid.png") as Texture2D
+	if mid_tex:
 		var mid_layer = ParallaxLayer.new()
 		mid_layer.motion_scale = Vector2(0.5, 0)
-		mid_layer.motion_mirroring = Vector2(1800, 0)
+		mid_layer.motion_mirroring = Vector2(mid_tex.get_width(), 0)
 		parallax_bg.add_child(mid_layer)
 
 		var mid_sprite = Sprite2D.new()
-		mid_sprite.texture = load("res://assets/backgrounds/bg_buildings_mid.png")
-		mid_sprite.position = Vector2(900, FLOOR_TOP - 100)
+		mid_sprite.texture = mid_tex
+		mid_sprite.centered = false
+		# Bottom-align to floor
+		mid_sprite.position = Vector2(0, FLOOR_TOP - mid_tex.get_height())
 		mid_layer.add_child(mid_sprite)
+		print("[Level] Mid buildings loaded: %dx%d" % [mid_tex.get_width(), mid_tex.get_height()])
+	else:
+		print("[Level] WARNING: bg_buildings_mid.png not found!")
 
 	# Floor
 	var floor_rect = ColorRect.new()
