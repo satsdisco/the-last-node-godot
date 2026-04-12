@@ -77,10 +77,8 @@ func _ready():
 	player.add_child(camera)
 	camera.make_current()
 
-	# Enemies
-	_spawn_enemy(Vector2(350, 270), "KYC")
-	_spawn_enemy(Vector2(450, 300), "KYC")
-	_spawn_enemy(Vector2(600, 260), "BANKER")
+	# Encounters — triggered when player reaches X position
+	_setup_encounters()
 
 	# HUD
 	_create_hud()
@@ -253,73 +251,271 @@ func _create_hud():
 	hud.name = "HUD"
 	add_child(hud)
 
-	# Character name
+	var green = Color(0, 1, 0.4)
+	var orange = Color(1, 0.8, 0.2)
+	var dim_green = Color(0, 0.5, 0.2)
+
+	# === TOP LEFT: Terminal-style player status ===
 	var name_lbl = Label.new()
-	name_lbl.text = "> P1 NODE RUNNER"
-	name_lbl.position = Vector2(10, 6)
-	name_lbl.add_theme_font_size_override("font_size", 12)
-	name_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	name_lbl.text = "> P1 NODE_RUNNER"
+	name_lbl.position = Vector2(8, 4)
+	name_lbl.add_theme_font_size_override("font_size", 11)
+	name_lbl.add_theme_color_override("font_color", green)
 	hud.add_child(name_lbl)
 
-	# HP
+	# Terminal-style HP bar using block characters
 	var hp_lbl = Label.new()
 	hp_lbl.name = "HPLabel"
-	hp_lbl.text = "HP 100/100"
-	hp_lbl.position = Vector2(10, 24)
-	hp_lbl.add_theme_font_size_override("font_size", 11)
-	hp_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	hp_lbl.text = "HP [██████████] 100/100"
+	hp_lbl.position = Vector2(8, 18)
+	hp_lbl.add_theme_font_size_override("font_size", 10)
+	hp_lbl.add_theme_color_override("font_color", green)
 	hud.add_child(hp_lbl)
 
-	# HP bar
+	# Thin color bar underneath
 	var bar_bg = ColorRect.new()
-	bar_bg.color = Color(0, 0.13, 0)
-	bar_bg.position = Vector2(10, 42)
-	bar_bg.size = Vector2(200, 6)
+	bar_bg.color = Color(0, 0.08, 0)
+	bar_bg.position = Vector2(8, 32)
+	bar_bg.size = Vector2(180, 4)
 	hud.add_child(bar_bg)
 
 	var bar = ColorRect.new()
 	bar.name = "HPBar"
-	bar.color = Color(0, 1, 0.4)
-	bar.position = Vector2(10, 42)
-	bar.size = Vector2(200, 6)
+	bar.color = green
+	bar.position = Vector2(8, 32)
+	bar.size = Vector2(180, 4)
 	hud.add_child(bar)
 
-	# Sats
+	# Weapon display
+	var weapon_lbl = Label.new()
+	weapon_lbl.name = "WeaponLabel"
+	weapon_lbl.text = ""
+	weapon_lbl.position = Vector2(8, 40)
+	weapon_lbl.add_theme_font_size_override("font_size", 9)
+	weapon_lbl.add_theme_color_override("font_color", orange)
+	hud.add_child(weapon_lbl)
+
+	# === TOP RIGHT: Sats + Block height ===
 	var sats_lbl = Label.new()
 	sats_lbl.name = "SatsLabel"
-	sats_lbl.text = "SATS 3000"
-	sats_lbl.position = Vector2(500, 6)
+	sats_lbl.text = "SATS: 3,000"
+	sats_lbl.position = Vector2(490, 4)
 	sats_lbl.add_theme_font_size_override("font_size", 12)
-	sats_lbl.add_theme_color_override("font_color", Color(1, 0.8, 0.2))
+	sats_lbl.add_theme_color_override("font_color", orange)
+	sats_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	sats_lbl.size = Vector2(140, 20)
 	hud.add_child(sats_lbl)
 
-	# Block height
 	var block_lbl = Label.new()
-	block_lbl.text = "BLOCK 840000"
-	block_lbl.position = Vector2(500, 24)
-	block_lbl.add_theme_font_size_override("font_size", 11)
-	block_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	block_lbl.name = "BlockLabel"
+	block_lbl.text = "BLOCK 840,000"
+	block_lbl.position = Vector2(490, 20)
+	block_lbl.add_theme_font_size_override("font_size", 10)
+	block_lbl.add_theme_color_override("font_color", green)
+	block_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	block_lbl.size = Vector2(140, 20)
 	hud.add_child(block_lbl)
+
+	# === BOTTOM: Status line with blinking cursor ===
+	var status = Label.new()
+	status.name = "StatusLabel"
+	status.text = "> awaiting_input_"
+	status.position = Vector2(8, 340)
+	status.add_theme_font_size_override("font_size", 9)
+	status.add_theme_color_override("font_color", dim_green)
+	hud.add_child(status)
 
 	# Controls hint
 	var hint = Label.new()
-	hint.text = "MOVE WASD    Z ATTACK    X SPECIAL    C JUMP    V GRAB    ESC PAUSE"
-	hint.position = Vector2(80, 340)
-	hint.add_theme_font_size_override("font_size", 10)
-	hint.add_theme_color_override("font_color", Color(0, 1, 0.4))
+	hint.text = "WASD move  Z attack  X special  C jump  V grab  ESC pause"
+	hint.position = Vector2(150, 348)
+	hint.add_theme_font_size_override("font_size", 9)
+	hint.add_theme_color_override("font_color", dim_green)
 	hud.add_child(hint)
 
-func _process(_delta):
-	# Update HUD
-	if player and is_instance_valid(player):
-		var hud = get_node_or_null("HUD")
-		if hud:
-			var hp_lbl = hud.get_node_or_null("HPLabel")
-			if hp_lbl:
-				hp_lbl.text = "HP %d/%d" % [player.hp, player.max_hp]
-			var bar = hud.get_node_or_null("HPBar")
-			if bar:
-				bar.size.x = 200.0 * (float(player.hp) / float(player.max_hp))
-			var sats_lbl = hud.get_node_or_null("SatsLabel")
-			if sats_lbl:
-				sats_lbl.text = "SATS %d" % GameState.sats
+# Encounter system
+var encounters: Array = []
+var current_encounter: int = -1
+var encounter_active: bool = false
+var gate_left: float = 0
+var gate_right: float = 0
+var gate_visual: ColorRect = null
+
+var _block_tick_timer: float = 0.0
+var _block_height: int = 840000
+var _blink_timer: float = 0.0
+
+func _process(delta):
+	if not player or not is_instance_valid(player):
+		return
+
+	# Encounter system
+	_check_encounters()
+
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
+
+	# Terminal-style HP bar ██████░░░░
+	var hp_lbl = hud.get_node_or_null("HPLabel")
+	if hp_lbl:
+		var pct = float(player.hp) / float(player.max_hp)
+		var blocks = int(pct * 10)
+		var bar_str = "█".repeat(blocks) + "░".repeat(10 - blocks)
+		hp_lbl.text = "HP [%s] %d/%d" % [bar_str, player.hp, player.max_hp]
+		# Color changes at low HP
+		if pct < 0.3:
+			hp_lbl.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
+		elif pct < 0.6:
+			hp_lbl.add_theme_color_override("font_color", Color(1, 0.7, 0))
+		else:
+			hp_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
+
+	# HP bar color
+	var bar = hud.get_node_or_null("HPBar")
+	if bar:
+		var pct = float(player.hp) / float(player.max_hp)
+		bar.size.x = 180.0 * pct
+		if pct < 0.3:
+			bar.color = Color(1, 0.2, 0.2)
+		elif pct < 0.6:
+			bar.color = Color(1, 0.7, 0)
+		else:
+			bar.color = Color(0, 1, 0.4)
+
+	# Sats with comma formatting
+	var sats_lbl = hud.get_node_or_null("SatsLabel")
+	if sats_lbl:
+		sats_lbl.text = "SATS: %s" % _format_sats(GameState.sats)
+
+	# Block height ticks up every 10s
+	_block_tick_timer += delta
+	if _block_tick_timer > 10.0:
+		_block_tick_timer = 0
+		_block_height += 1
+	var block_lbl = hud.get_node_or_null("BlockLabel")
+	if block_lbl:
+		block_lbl.text = "BLOCK %s" % _format_number(_block_height)
+
+	# Blinking cursor on status line
+	_blink_timer += delta
+	var status = hud.get_node_or_null("StatusLabel")
+	if status:
+		var cursor = "_" if fmod(_blink_timer, 1.0) < 0.5 else " "
+		status.text = "> awaiting_input%s" % cursor
+
+func _format_sats(n: int) -> String:
+	return _format_number(n)
+
+func _format_number(n: int) -> String:
+	var s = str(n)
+	var result = ""
+	var count = 0
+	for i in range(s.length() - 1, -1, -1):
+		if count > 0 and count % 3 == 0:
+			result = "," + result
+		result = s[i] + result
+		count += 1
+	return result
+
+# ==== ENCOUNTER SYSTEM ====
+
+func _setup_encounters():
+	encounters = [
+		# Encounter 1: first KYC swarm
+		{ "trigger_x": 400, "left": 320, "right": 700,
+		  "enemies": [
+			{"type": "KYC", "x": 650, "y": 270},
+			{"type": "KYC", "x": 650, "y": 310},
+			{"type": "KYC", "x": 350, "y": 280},
+		  ]},
+		# Encounter 2: Bankers + KYC
+		{ "trigger_x": 900, "left": 820, "right": 1200,
+		  "enemies": [
+			{"type": "BANKER", "x": 1150, "y": 280},
+			{"type": "KYC", "x": 860, "y": 300},
+			{"type": "KYC", "x": 1150, "y": 260},
+		  ]},
+		# Encounter 3: bigger fight
+		{ "trigger_x": 1500, "left": 1420, "right": 1900,
+		  "enemies": [
+			{"type": "KYC", "x": 1850, "y": 260},
+			{"type": "BANKER", "x": 1460, "y": 300},
+			{"type": "KYC", "x": 1850, "y": 310},
+			{"type": "BANKER", "x": 1460, "y": 270},
+		  ]},
+		# Encounter 4: final arena
+		{ "trigger_x": 2200, "left": 2100, "right": 2600,
+		  "enemies": [
+			{"type": "KYC", "x": 2550, "y": 270},
+			{"type": "KYC", "x": 2550, "y": 300},
+			{"type": "BANKER", "x": 2150, "y": 280},
+			{"type": "KYC", "x": 2550, "y": 250},
+			{"type": "BANKER", "x": 2150, "y": 310},
+		  ]},
+	]
+
+func _check_encounters():
+	if encounter_active:
+		# Gate the player
+		if player.global_position.x > gate_right - 16:
+			player.global_position.x = gate_right - 16
+		if player.global_position.x < gate_left + 16:
+			player.global_position.x = gate_left + 16
+
+		# Check if all enemies are dead
+		var alive = get_tree().get_nodes_in_group("enemies")
+		if alive.is_empty():
+			_end_encounter()
+		return
+
+	# Check if player crossed the next trigger
+	var next = current_encounter + 1
+	if next >= encounters.size():
+		return
+	if player.global_position.x >= encounters[next]["trigger_x"]:
+		current_encounter = next
+		_start_encounter(encounters[next])
+
+func _start_encounter(enc: Dictionary):
+	encounter_active = true
+	gate_left = enc["left"]
+	gate_right = enc["right"]
+
+	# Red gate barrier
+	gate_visual = ColorRect.new()
+	gate_visual.color = Color(1, 0.2, 0.2, 0.3)
+	gate_visual.position = Vector2(gate_right - 4, FLOOR_TOP)
+	gate_visual.size = Vector2(4, FLOOR_BOTTOM - FLOOR_TOP)
+	gate_visual.z_index = 9990
+	add_child(gate_visual)
+
+	SFX.gate_lock(get_tree())
+
+	# Spawn enemies
+	for e_data in enc["enemies"]:
+		_spawn_enemy(Vector2(e_data["x"], e_data["y"]), e_data["type"])
+
+	# Announcement
+	_show_announcement("ENEMIES INCOMING")
+
+func _end_encounter():
+	encounter_active = false
+	if gate_visual:
+		gate_visual.queue_free()
+		gate_visual = null
+	_show_announcement("AREA CLEAR")
+
+func _show_announcement(text: String):
+	var lbl = Label.new()
+	lbl.text = text
+	lbl.position = Vector2(200, 100)
+	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
+	lbl.z_index = 9999
+	add_child(lbl)
+
+	# Fade via CanvasLayer so it's screen-fixed
+	var tween = lbl.create_tween()
+	tween.tween_property(lbl, "modulate:a", 0.0, 1.5)
+	tween.tween_callback(lbl.queue_free)

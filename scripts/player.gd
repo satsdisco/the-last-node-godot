@@ -78,6 +78,7 @@ func _physics_process(delta: float):
 	if Input.is_action_just_pressed("jump") and not is_jumping and not grabbed_enemy:
 		is_jumping = true
 		jump_vz = 260.0
+		SFX.jump(get_tree())
 
 	if is_jumping:
 		jump_z += jump_vz * delta
@@ -216,6 +217,7 @@ func try_attack():
 	if combo_count >= combo_length:
 		combo_count = 0
 
+	SFX.attack(get_tree())
 	is_attacking = true
 	get_tree().create_timer(0.15).timeout.connect(func(): is_attacking = false)
 
@@ -238,8 +240,7 @@ func _trigger_finisher(enemy: Node):
 	tween.parallel().tween_property(taunt_lbl, "modulate:a", 0.0, 0.8)
 	tween.tween_callback(taunt_lbl.queue_free)
 
-	# Camera flash
-	# Kill the enemy
+	SFX.finisher(get_tree())
 	if enemy.has_method("take_hit"):
 		enemy.take_hit(9999, facing)
 
@@ -269,6 +270,7 @@ func try_grab():
 		grab_until = Time.get_ticks_msec() / 1000.0 + GRAB_HOLD_TIME
 		if nearest.has_method("set_grabbed"):
 			nearest.set_grabbed(true)
+		SFX.grab(get_tree())
 
 func release_grab():
 	if grabbed_enemy and is_instance_valid(grabbed_enemy):
@@ -300,15 +302,18 @@ func throw_enemy():
 	release_grab()
 	if thrown.has_method("be_thrown"):
 		thrown.be_thrown(facing * THROW_SPEED)
+	SFX.throw_enemy(get_tree())
 	CombatJuice.shake(get_viewport().get_camera_2d(), 4.0, 0.1)
 
 # ==== SPECIALS ====
 
 func try_special_1():
 	if GameState.sats < special_1_cost:
+		SFX.no_sats(get_tree())
 		_no_sats_flash()
 		return
 	GameState.sats -= special_1_cost
+	SFX.special(get_tree())
 	do_special_1()
 
 func try_special_2():
@@ -316,6 +321,7 @@ func try_special_2():
 		_no_sats_flash()
 		return
 	GameState.sats -= special_2_cost
+	SFX.special(get_tree())
 	do_special_2()
 
 func try_super():
@@ -323,6 +329,7 @@ func try_super():
 		_no_sats_flash()
 		return
 	GameState.sats -= super_cost
+	SFX.super_move(get_tree())
 	do_super()
 
 func do_special_1():
@@ -404,6 +411,7 @@ func take_hit(damage: int, from_dir: int):
 	invuln_until = now + 0.5
 	hp = max(0, hp - damage)
 	velocity = Vector2(from_dir * 240, 0)
+	SFX.player_hurt(get_tree())
 
 	# Flash visual children white
 	for child in get_children():

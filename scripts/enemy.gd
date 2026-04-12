@@ -111,6 +111,7 @@ func take_hit(dmg: int, from_dir: int):
 				if is_instance_valid(child): child.color = orig
 			)
 
+	SFX.hit(get_tree())
 	if hp <= 0:
 		_die()
 
@@ -148,6 +149,8 @@ func _die():
 	var pos = global_position
 	var sats = int(drop_sats * GameState.sat_drop_mult())
 
+	SFX.enemy_die(get_tree())
+	SFX.sat_pickup(get_tree())
 	CombatJuice.death_burst(get_parent(), pos + Vector2(0, -20))
 	CombatJuice.sat_popup(get_parent(), pos, sats)
 	GameState.sats += sats
