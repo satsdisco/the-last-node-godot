@@ -93,7 +93,17 @@ func stun(duration_ms: float):
 	stunned_until = max(stunned_until, Time.get_ticks_msec() / 1000.0 + duration_ms / 1000.0)
 
 func _die():
-	died_at.emit(global_position, int(drop_sats * GameState.sat_drop_mult()))
+	var pos = global_position
+	var sats = int(drop_sats * GameState.sat_drop_mult())
+
+	# Death burst particles
+	CombatJuice.death_burst(get_parent(), pos + Vector2(0, -20))
+
+	# Sat drop popup
+	CombatJuice.sat_popup(get_parent(), pos, sats)
+	GameState.sats += sats
+
+	died_at.emit(pos, sats)
 	queue_free()
 
 func _update_visuals():

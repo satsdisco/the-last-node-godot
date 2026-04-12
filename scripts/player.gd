@@ -35,6 +35,8 @@ signal hit_taken(damage: int)
 func _ready():
 	hp = max_hp
 	add_to_group("players")
+	# Player keeps processing during hitstop so input feels responsive
+	process_mode = Node.PROCESS_MODE_ALWAYS
 
 func _physics_process(delta: float):
 	# Movement
@@ -134,69 +136,25 @@ func try_attack():
 		if in_front and enemy.has_method("take_hit"):
 			enemy.take_hit(dmg, facing)
 			hit_any = true
-			_spawn_hit_effect(enemy.global_position + Vector2(0, -20))
+			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20))
+			CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -30), dmg)
 
-	# Slash visual
-	_spawn_slash()
+	# Slash arc visual
+	CombatJuice.slash_arc(get_parent(), global_position + Vector2(0, -22), facing, attack_range)
 
-	# Screen shake on hit
 	if hit_any:
+		# HIT-STOP — THE secret to great combat feel
+		CombatJuice.hitstop(get_tree(), 0.04 if combo_count < combo_length else 0.08)
+		# Screen shake
 		var cam = get_viewport().get_camera_2d()
-		if cam:
-			var shake_amount = 4.0 if combo_count >= combo_length else 2.0
-			cam.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
-			get_tree().create_timer(0.06).timeout.connect(func():
-				if cam: cam.offset = Vector2.ZERO
-			)
+		var intensity = 6.0 if combo_count >= combo_length else 3.0
+		CombatJuice.shake(cam, intensity, 0.12)
 
 	if combo_count >= combo_length:
 		combo_count = 0
 
-	# Reset attack state after brief delay
+	# Reset attack state
 	get_tree().create_timer(0.15).timeout.connect(func(): is_attacking = false)
-
-func _spawn_slash():
-	var slash = ColorRect.new()
-	slash.color = Color(1, 0.6, 0, 0.7)
-	slash.size = Vector2(attack_range, 6)
-	slash.position = global_position + Vector2(facing * attack_range * 0.25, -24)
-	slash.rotation = deg_to_rad(-25 * facing)
-	slash.z_index = int(global_position.y) + 10
-	get_parent().add_child(slash)
-
-	var tween = create_tween()
-	tween.tween_property(slash, "rotation", deg_to_rad(20.0 * facing), 0.1)
-	tween.parallel().tween_property(slash, "modulate:a", 0.0, 0.12)
-	tween.tween_callback(slash.queue_free)
-
-func _spawn_hit_effect(pos: Vector2):
-	for i in range(5):
-		var spark = ColorRect.new()
-		spark.color = Color(1, 0.6, 0)
-		spark.size = Vector2(3, 3)
-		spark.global_position = pos
-		spark.z_index = 200
-		get_parent().add_child(spark)
-
-		var angle = randf() * TAU
-		var dist = randf_range(6, 18)
-		var tween = create_tween()
-		tween.tween_property(spark, "global_position", pos + Vector2(cos(angle) * dist, sin(angle) * dist), 0.2)
-		tween.parallel().tween_property(spark, "modulate:a", 0.0, 0.2)
-		tween.tween_callback(spark.queue_free)
-
-	# Impact ring
-	var ring = ColorRect.new()
-	ring.color = Color(1, 1, 1, 0.8)
-	ring.size = Vector2(6, 6)
-	ring.global_position = pos - Vector2(3, 3)
-	ring.z_index = 200
-	get_parent().add_child(ring)
-
-	var tween = create_tween()
-	tween.tween_property(ring, "scale", Vector2(4, 4), 0.15)
-	tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.15)
-	tween.tween_callback(ring.queue_free)
 
 func take_hit(damage: int, from_dir: int):
 	var now = Time.get_ticks_msec() / 1000.0
