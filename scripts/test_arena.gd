@@ -3,10 +3,10 @@ extends Node2D
 ## Test Arena — builds the scene in code so we don't fight .tscn format.
 ## Hit F5 and punch some KYC agents.
 
-# Characters walk on the street visible in the foreground art
-# Street area is roughly the bottom 35% of the screen
-const FLOOR_TOP = 240
-const FLOOR_BOTTOM = 340
+# Characters walk ONLY on the street — bottom 25% of screen
+# This keeps them on the road, not walking into buildings
+const FLOOR_TOP = 275
+const FLOOR_BOTTOM = 345
 const LEVEL_WIDTH = 3200
 
 var player: CharacterBody2D
