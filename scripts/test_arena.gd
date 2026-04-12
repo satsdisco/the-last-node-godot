@@ -77,6 +77,19 @@ func _ready():
 	player.add_child(camera)
 	camera.make_current()
 
+	# Destructible props along the level
+	Destructible.spawn(self, Vector2(250, 310), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(750, 310), Destructible.PropType.CHECKPOINT)
+	Destructible.spawn(self, Vector2(1200, 310), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(1800, 240), Destructible.PropType.BILLBOARD)
+	Destructible.spawn(self, Vector2(2050, 310), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(2500, 310), Destructible.PropType.CHECKPOINT)
+
+	# Pre-placed power-ups at key locations
+	Pickup.spawn_power_up(self, Vector2(200, 300), Pickup.PickupType.ORANGE_PILL)
+	Pickup.spawn_power_up(self, Vector2(2180, 300), Pickup.PickupType.ORANGE_PILL)
+	Pickup.spawn_power_up(self, Vector2(2200, 300), Pickup.PickupType.FULL_NODE)
+
 	# Encounters — triggered when player reaches X position
 	_setup_encounters()
 

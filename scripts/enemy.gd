@@ -150,10 +150,12 @@ func _die():
 	var sats = int(drop_sats * GameState.sat_drop_mult())
 
 	SFX.enemy_die(get_tree())
-	SFX.sat_pickup(get_tree())
 	CombatJuice.death_burst(get_parent(), pos + Vector2(0, -20))
-	CombatJuice.sat_popup(get_parent(), pos, sats)
-	GameState.sats += sats
+
+	# Drop sats + random item
+	Pickup.spawn_sats(get_parent(), pos + Vector2(0, -8), sats)
+	if randf() < 0.15:
+		Pickup.spawn_random_drop(get_parent(), pos + Vector2(randf_range(-15, 15), -8))
 
 	died_at.emit(pos, sats)
 	queue_free()
