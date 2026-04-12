@@ -3,7 +3,9 @@ extends Node2D
 ## Test Arena — builds the scene in code so we don't fight .tscn format.
 ## Hit F5 and punch some KYC agents.
 
-const FLOOR_TOP = 220
+# Characters walk on the street visible in the foreground art
+# Street area is roughly the bottom 35% of the screen
+const FLOOR_TOP = 240
 const FLOOR_BOTTOM = 340
 const LEVEL_WIDTH = 3200
 
@@ -19,25 +21,19 @@ func _ready():
 	# Layer 2: Mid buildings
 	_add_parallax_layer("res://assets/backgrounds/synth_middle.png", -80, 0.35, 0)
 
-	# Layer 3: Foreground buildings (closest, fast scroll)
-	_add_parallax_layer("res://assets/backgrounds/synth_foreground_empty.png", -60, 0.6, FLOOR_TOP)
+	# Layer 3: Foreground buildings — positioned so the street in the art
+	# IS the walkable ground. Bottom of image at y=360 (screen bottom),
+	# characters walk on the street area within the image.
+	_add_parallax_layer("res://assets/backgrounds/synth_foreground_empty.png", -60, 0.6, 360)
 
-	# Floor — dark ground strip for the walkable area
-	var floor_rect = ColorRect.new()
-	floor_rect.color = Color(0.08, 0.06, 0.1)
-	floor_rect.position = Vector2(0, FLOOR_TOP)
-	floor_rect.size = Vector2(LEVEL_WIDTH, FLOOR_BOTTOM - FLOOR_TOP)
-	floor_rect.z_index = -50
-	add_child(floor_rect)
-
-	# Floor detail lines
-	for gy in range(FLOOR_TOP, FLOOR_BOTTOM, 16):
-		var line = ColorRect.new()
-		line.color = Color(0.06, 0.04, 0.08, 0.4)
-		line.position = Vector2(0, gy)
-		line.size = Vector2(LEVEL_WIDTH, 1)
-		line.z_index = -49
-		add_child(line)
+	# No separate floor rect — the foreground image IS the ground.
+	# Just a subtle darkening strip at the very bottom for depth
+	var floor_fade = ColorRect.new()
+	floor_fade.color = Color(0, 0, 0, 0.3)
+	floor_fade.position = Vector2(0, FLOOR_BOTTOM)
+	floor_fade.size = Vector2(LEVEL_WIDTH, 360 - FLOOR_BOTTOM)
+	floor_fade.z_index = -45
+	add_child(floor_fade)
 
 	# === MUSIC ===
 	var music = AudioStreamPlayer.new()
