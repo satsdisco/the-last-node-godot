@@ -11,48 +11,43 @@ var player: CharacterBody2D
 var camera: Camera2D
 
 func _ready():
-	# === BACKGROUNDS (manual parallax — more reliable than ParallaxBackground) ===
+	# === BACKGROUNDS — Synth Cities parallax layers ===
 
-	# Skyline — far layer, slow scroll
-	var sky_tex = load("res://assets/backgrounds/bg_skyline_far.png") as Texture2D
-	if sky_tex:
-		# Tile the skyline across enough width to never see the edge
-		for sx in range(0, LEVEL_WIDTH + sky_tex.get_width(), sky_tex.get_width()):
-			var sky_sprite = Sprite2D.new()
-			sky_sprite.texture = sky_tex
-			sky_sprite.centered = false
-			sky_sprite.position = Vector2(sx, 0)
-			sky_sprite.z_index = -100
-			sky_sprite.name = "sky_%d" % sx
-			add_child(sky_sprite)
-		_parallax_layers.append({"prefix": "sky_", "factor": 0.3, "count": ceili(float(LEVEL_WIDTH) / sky_tex.get_width()) + 1})
-		print("[Level] Skyline loaded: %dx%d" % [sky_tex.get_width(), sky_tex.get_height()])
-	else:
-		print("[Level] WARNING: bg_skyline_far.png not found!")
+	# Layer 1: Far skyline (slowest scroll)
+	_add_parallax_layer("res://assets/backgrounds/synth_back.png", -100, 0.15, 0)
 
-	# Mid buildings — closer layer, faster scroll
-	var mid_tex = load("res://assets/backgrounds/bg_buildings_mid.png") as Texture2D
-	if mid_tex:
-		for mx in range(0, LEVEL_WIDTH + mid_tex.get_width(), mid_tex.get_width()):
-			var mid_sprite = Sprite2D.new()
-			mid_sprite.texture = mid_tex
-			mid_sprite.centered = false
-			mid_sprite.position = Vector2(mx, FLOOR_TOP - mid_tex.get_height())
-			mid_sprite.z_index = -80
-			mid_sprite.name = "mid_%d" % mx
-			add_child(mid_sprite)
-		_parallax_layers.append({"prefix": "mid_", "factor": 0.5, "count": ceili(float(LEVEL_WIDTH) / mid_tex.get_width()) + 1})
-		print("[Level] Mid buildings loaded: %dx%d" % [mid_tex.get_width(), mid_tex.get_height()])
-	else:
-		print("[Level] WARNING: bg_buildings_mid.png not found!")
+	# Layer 2: Mid buildings
+	_add_parallax_layer("res://assets/backgrounds/synth_middle.png", -80, 0.35, 0)
 
-	# Floor — dark ground strip
+	# Layer 3: Foreground buildings (closest, fast scroll)
+	_add_parallax_layer("res://assets/backgrounds/synth_foreground_empty.png", -60, 0.6, FLOOR_TOP)
+
+	# Floor — dark ground strip for the walkable area
 	var floor_rect = ColorRect.new()
-	floor_rect.color = Color(0.07, 0.086, 0.12)
+	floor_rect.color = Color(0.08, 0.06, 0.1)
 	floor_rect.position = Vector2(0, FLOOR_TOP)
 	floor_rect.size = Vector2(LEVEL_WIDTH, FLOOR_BOTTOM - FLOOR_TOP)
 	floor_rect.z_index = -50
 	add_child(floor_rect)
+
+	# Floor detail lines
+	for gy in range(FLOOR_TOP, FLOOR_BOTTOM, 16):
+		var line = ColorRect.new()
+		line.color = Color(0.06, 0.04, 0.08, 0.4)
+		line.position = Vector2(0, gy)
+		line.size = Vector2(LEVEL_WIDTH, 1)
+		line.z_index = -49
+		add_child(line)
+
+	# === MUSIC ===
+	var music = AudioStreamPlayer.new()
+	var music_stream = load("res://assets/audio/music/cyberpunk_street.ogg")
+	if music_stream:
+		music.stream = music_stream
+		music.volume_db = -8
+		music.autoplay = true
+		add_child(music)
+		print("[Level] Music loaded: cyberpunk_street.ogg")
 
 	# Floor grid lines
 	for gy in range(FLOOR_TOP, FLOOR_BOTTOM, 20):
@@ -109,6 +104,42 @@ func _ready():
 	player.died.connect(_on_player_died)
 
 	print("[TestArena] Ready — WASD to move, Z to attack!")
+
+func _add_parallax_layer(texture_path: String, z: int, scroll_factor: float, bottom_align_y: int):
+	var tex = load(texture_path) as Texture2D
+	if not tex:
+		print("[Level] WARNING: %s not found!" % texture_path)
+		return
+
+	var tex_w = tex.get_width()
+	var tex_h = tex.get_height()
+	var prefix = texture_path.get_file().get_basename() + "_"
+
+	# Calculate Y position — either top-aligned or bottom-aligned to a Y coordinate
+	var y_pos = 0
+	if bottom_align_y > 0:
+		# Scale to fit screen width, bottom-align to the given Y
+		y_pos = bottom_align_y - int(float(tex_h) * (640.0 / float(tex_w)))
+	else:
+		# Scale to fill screen height
+		y_pos = 0
+
+	# Tile across the level width, scaled to fill viewport height
+	var scale_factor = 640.0 / float(tex_w)  # Scale to viewport width
+	var tiles_needed = ceili(float(LEVEL_WIDTH) / 640.0) + 2
+
+	for i in range(tiles_needed):
+		var sprite = Sprite2D.new()
+		sprite.texture = tex
+		sprite.centered = false
+		sprite.position = Vector2(i * 640, y_pos)
+		sprite.scale = Vector2(scale_factor, scale_factor)
+		sprite.z_index = z
+		sprite.name = "%s%d" % [prefix, i]
+		add_child(sprite)
+
+	_parallax_layers.append({"prefix": prefix, "factor": scroll_factor})
+	print("[Level] Layer loaded: %s (%dx%d, factor %.2f)" % [texture_path.get_file(), tex_w, tex_h, scroll_factor])
 
 func _create_player(pos: Vector2) -> CharacterBody2D:
 	var p = CharacterBody2D.new()
