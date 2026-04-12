@@ -3,9 +3,9 @@ class_name Player
 
 ## Base player class for THE LAST NODE.
 ## Movement is 2.5D: X is horizontal, Y is depth (not gravity).
-## Jump is a visual Z offset only.
+## Jump is a visual Z offset on child nodes.
 
-# Stats — overridden by character subclasses
+# Stats
 @export var speed: float = 160.0
 @export var max_hp: int = 100
 @export var base_damage: int = 10
@@ -16,46 +16,28 @@ class_name Player
 
 # State
 var hp: int
-var sats: int:
-	get: return GameState.sats
-	set(v): GameState.sats = v
-var facing: int = 1  # 1 = right, -1 = left
+var facing: int = 1
 var is_attacking: bool = false
 var is_jumping: bool = false
 var jump_z: float = 0.0
 var jump_vz: float = 0.0
+var invuln_until: float = 0.0
 
 # Combat
 var combo_count: int = 0
 var last_attack_time: float = 0.0
 var last_combo_time: float = 0.0
-var invuln_until: float = 0.0
 const COMBO_WINDOW: float = 0.4
 
-# Node references
-@onready var sprite: AnimatedSprite2D = $Sprite
-@onready var shadow: Sprite2D = $Shadow
-@onready var hitbox: Area2D = $AttackHitbox
-@onready var label: Label = $Label
-
-# Signals
 signal died
 signal hit_taken(damage: int)
 
 func _ready():
 	hp = max_hp
-	hitbox.monitoring = false
-	if label:
-		label.text = character_name
+	add_to_group("players")
 
 func _physics_process(delta: float):
-	handle_movement(delta)
-	handle_jump(delta)
-	handle_attack()
-	update_visuals()
-	move_and_slide()
-
-func handle_movement(delta: float):
+	# Movement
 	var input_dir = Vector2.ZERO
 	if Input.is_action_pressed("move_left"):
 		input_dir.x -= 1
@@ -70,10 +52,9 @@ func handle_movement(delta: float):
 
 	if input_dir.length() > 0:
 		input_dir = input_dir.normalized()
-
 	velocity = input_dir * speed
 
-func handle_jump(delta: float):
+	# Jump (visual only)
 	if Input.is_action_just_pressed("jump") and not is_jumping:
 		is_jumping = true
 		jump_vz = 260.0
@@ -86,43 +67,58 @@ func handle_jump(delta: float):
 			jump_vz = 0
 			is_jumping = false
 
-func handle_attack():
+	# Attack
 	if Input.is_action_just_pressed("attack"):
-		var now = Time.get_ticks_msec() / 1000.0
-		if now - last_attack_time < attack_cooldown:
-			return
-		last_attack_time = now
+		try_attack()
 
-		# Combo tracking
-		if now - last_combo_time < COMBO_WINDOW:
-			combo_count += 1
-		else:
-			combo_count = 1
-		last_combo_time = now
+	# Apply jump Z to visual children (not the physics body)
+	for child in get_children():
+		if child is CollisionShape2D:
+			continue
+		if child.name == "Shadow":
+			# Shadow stays on ground, squashes during jump
+			child.scale.x = max(0.5, 1.0 - jump_z / 80.0) * 2.5
+			continue
+		if child is Camera2D:
+			continue
+		# Everything else floats up with jump
+		child.position.y = child.get_meta("base_y", child.position.y) - jump_z
+		if not child.has_meta("base_y"):
+			child.set_meta("base_y", child.position.y)
 
-		# Play attack animation
-		is_attacking = true
-		if sprite.sprite_frames and sprite.sprite_frames.has_animation("attack"):
-			sprite.play("attack")
+	# Facing — flip visual children
+	for child in get_children():
+		if child is ColorRect and child.name != "Shadow":
+			# Flip by mirroring position around center
+			pass  # We'll handle this with proper sprites later
 
-		# Activate hitbox briefly
-		perform_attack()
+	# Depth sort
+	z_index = int(global_position.y)
 
-		# Camera shake
-		var cam = get_viewport().get_camera_2d()
-		if cam:
-			cam.offset = Vector2(randf_range(-2, 2), randf_range(-2, 2))
-			get_tree().create_timer(0.05).timeout.connect(func(): cam.offset = Vector2.ZERO)
+	move_and_slide()
 
-func perform_attack():
-	# Find enemies in range
-	var enemies = get_tree().get_nodes_in_group("enemies")
+func try_attack():
+	var now = Time.get_ticks_msec() / 1000.0
+	if now - last_attack_time < attack_cooldown:
+		return
+	last_attack_time = now
+
+	# Combo tracking
+	if now - last_combo_time < COMBO_WINDOW:
+		combo_count += 1
+	else:
+		combo_count = 1
+	last_combo_time = now
+
+	is_attacking = true
+
+	# Find and hit enemies in range
 	var dmg = base_damage
 	if combo_count >= combo_length:
 		dmg = int(dmg * 1.5)
 
 	var hit_any = false
-	for enemy in enemies:
+	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if not enemy is CharacterBody2D:
 			continue
 		var dx = enemy.global_position.x - global_position.x
@@ -138,32 +134,69 @@ func perform_attack():
 		if in_front and enemy.has_method("take_hit"):
 			enemy.take_hit(dmg, facing)
 			hit_any = true
-			spawn_hit_spark(enemy.global_position + Vector2(0, -20))
+			_spawn_hit_effect(enemy.global_position + Vector2(0, -20))
 
-	if hit_any and combo_count >= combo_length:
-		combo_count = 0
-		# Big screen shake on combo finisher
+	# Slash visual
+	_spawn_slash()
+
+	# Screen shake on hit
+	if hit_any:
 		var cam = get_viewport().get_camera_2d()
 		if cam:
-			cam.offset = Vector2(randf_range(-4, 4), randf_range(-4, 4))
-			get_tree().create_timer(0.08).timeout.connect(func(): cam.offset = Vector2.ZERO)
+			var shake_amount = 4.0 if combo_count >= combo_length else 2.0
+			cam.offset = Vector2(randf_range(-shake_amount, shake_amount), randf_range(-shake_amount, shake_amount))
+			get_tree().create_timer(0.06).timeout.connect(func():
+				if cam: cam.offset = Vector2.ZERO
+			)
 
-func spawn_hit_spark(pos: Vector2):
-	# Simple visual feedback — will be replaced with GPUParticles2D
-	var spark = Sprite2D.new()
-	spark.modulate = Color(1, 0.6, 0, 1)
-	spark.global_position = pos
-	spark.z_index = 100
-	# Use a simple rect texture
-	var img = Image.create(4, 4, false, Image.FORMAT_RGBA8)
-	img.fill(Color.WHITE)
-	spark.texture = ImageTexture.create_from_image(img)
-	get_parent().add_child(spark)
+	if combo_count >= combo_length:
+		combo_count = 0
+
+	# Reset attack state after brief delay
+	get_tree().create_timer(0.15).timeout.connect(func(): is_attacking = false)
+
+func _spawn_slash():
+	var slash = ColorRect.new()
+	slash.color = Color(1, 0.6, 0, 0.7)
+	slash.size = Vector2(attack_range, 6)
+	slash.position = global_position + Vector2(facing * attack_range * 0.25, -24)
+	slash.rotation = deg_to_rad(-25 * facing)
+	slash.z_index = int(global_position.y) + 10
+	get_parent().add_child(slash)
 
 	var tween = create_tween()
-	tween.tween_property(spark, "modulate:a", 0.0, 0.2)
-	tween.tween_property(spark, "scale", Vector2(3, 3), 0.2)
-	tween.tween_callback(spark.queue_free)
+	tween.tween_property(slash, "rotation", deg_to_rad(20.0 * facing), 0.1)
+	tween.parallel().tween_property(slash, "modulate:a", 0.0, 0.12)
+	tween.tween_callback(slash.queue_free)
+
+func _spawn_hit_effect(pos: Vector2):
+	for i in range(5):
+		var spark = ColorRect.new()
+		spark.color = Color(1, 0.6, 0)
+		spark.size = Vector2(3, 3)
+		spark.global_position = pos
+		spark.z_index = 200
+		get_parent().add_child(spark)
+
+		var angle = randf() * TAU
+		var dist = randf_range(6, 18)
+		var tween = create_tween()
+		tween.tween_property(spark, "global_position", pos + Vector2(cos(angle) * dist, sin(angle) * dist), 0.2)
+		tween.parallel().tween_property(spark, "modulate:a", 0.0, 0.2)
+		tween.tween_callback(spark.queue_free)
+
+	# Impact ring
+	var ring = ColorRect.new()
+	ring.color = Color(1, 1, 1, 0.8)
+	ring.size = Vector2(6, 6)
+	ring.global_position = pos - Vector2(3, 3)
+	ring.z_index = 200
+	get_parent().add_child(ring)
+
+	var tween = create_tween()
+	tween.tween_property(ring, "scale", Vector2(4, 4), 0.15)
+	tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.15)
+	tween.tween_callback(ring.queue_free)
 
 func take_hit(damage: int, from_dir: int):
 	var now = Time.get_ticks_msec() / 1000.0
@@ -172,60 +205,20 @@ func take_hit(damage: int, from_dir: int):
 	invuln_until = now + 0.5
 	hp = max(0, hp - damage)
 
-	# Knockback
 	velocity = Vector2(from_dir * 240, 0)
 
-	# Flash white
-	if sprite:
-		sprite.modulate = Color.WHITE
-		get_tree().create_timer(0.08).timeout.connect(func():
-			sprite.modulate = Color(1, 1, 1, 1)
-		)
-
-	# Blink invuln
-	var tween = create_tween()
-	tween.tween_property(sprite, "modulate:a", 0.3, 0.08)
-	tween.tween_property(sprite, "modulate:a", 1.0, 0.08)
-	tween.set_loops(3)
+	# Flash all visible children white
+	for child in get_children():
+		if child is ColorRect and child.name != "Shadow":
+			var orig_color = child.color
+			child.color = Color.WHITE
+			get_tree().create_timer(0.08).timeout.connect(func():
+				if is_instance_valid(child): child.color = orig_color
+			)
 
 	hit_taken.emit(damage)
-
 	if hp <= 0:
 		die()
 
 func die():
 	died.emit()
-
-func update_visuals():
-	# Flip sprite based on facing
-	if sprite:
-		sprite.flip_h = facing == -1
-
-	# Apply jump Z offset to sprite (visual only)
-	if sprite:
-		sprite.position.y = -jump_z
-
-	# Shadow squashes during jump
-	if shadow:
-		shadow.scale.x = max(0.5, 1.0 - jump_z / 80.0)
-
-	# Animation state
-	if sprite and sprite.sprite_frames:
-		if is_attacking:
-			# Attack animation handles itself
-			pass
-		elif velocity.length() > 10:
-			if sprite.sprite_frames.has_animation("walk"):
-				if sprite.animation != "walk":
-					sprite.play("walk")
-		else:
-			if sprite.sprite_frames.has_animation("idle"):
-				if sprite.animation != "idle":
-					sprite.play("idle")
-
-	# Z-sorting by Y position (depth)
-	z_index = int(global_position.y)
-
-func _on_sprite_animation_finished():
-	if sprite.animation == "attack":
-		is_attacking = false
