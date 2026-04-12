@@ -87,8 +87,11 @@ func _ready():
 
 	# Pre-placed power-ups at key locations
 	Pickup.spawn_power_up(self, Vector2(200, 300), Pickup.PickupType.ORANGE_PILL)
-	Pickup.spawn_power_up(self, Vector2(2180, 300), Pickup.PickupType.ORANGE_PILL)
-	Pickup.spawn_power_up(self, Vector2(2200, 300), Pickup.PickupType.FULL_NODE)
+	Pickup.spawn_power_up(self, Vector2(1350, 300), Pickup.PickupType.ORANGE_PILL)
+	# Boss prep — heal + damage buff + weapon before the captain
+	Pickup.spawn_power_up(self, Vector2(2700, 300), Pickup.PickupType.ORANGE_PILL)
+	Pickup.spawn_power_up(self, Vector2(2720, 300), Pickup.PickupType.FULL_NODE)
+	Pickup.spawn_power_up(self, Vector2(2740, 300), Pickup.PickupType.COLD_STORAGE)
 
 	# Encounters — triggered when player reaches X position
 	_setup_encounters()
@@ -158,12 +161,19 @@ func _create_player(pos: Vector2) -> CharacterBody2D:
 	return p
 
 func _spawn_enemy(pos: Vector2, type: String):
+	# CBDC Enforcer and Boss have their own scripts
+	if type == "ENFORCER":
+		_spawn_enforcer(pos)
+		return
+	if type == "BOSS":
+		_spawn_boss(pos)
+		return
+
 	var e = CharacterBody2D.new()
 	e.position = pos
 	e.set_script(load("res://scripts/enemy.gd"))
 	e.add_to_group("enemies")
 
-	# Set enemy properties
 	e.set("enemy_name", type)
 	if type == "BANKER":
 		e.set("speed", 60.0)
@@ -457,14 +467,17 @@ func _setup_encounters():
 			{"type": "KYC", "x": 1850, "y": 310},
 			{"type": "BANKER", "x": 1460, "y": 270},
 		  ]},
-		# Encounter 4: final arena
+		# Encounter 4: enforcer introduction
 		{ "trigger_x": 2200, "left": 2100, "right": 2600,
 		  "enemies": [
-			{"type": "KYC", "x": 2550, "y": 270},
-			{"type": "KYC", "x": 2550, "y": 300},
-			{"type": "BANKER", "x": 2150, "y": 280},
-			{"type": "KYC", "x": 2550, "y": 250},
-			{"type": "BANKER", "x": 2150, "y": 310},
+			{"type": "ENFORCER", "x": 2550, "y": 280},
+			{"type": "KYC", "x": 2550, "y": 310},
+			{"type": "KYC", "x": 2150, "y": 270},
+		  ]},
+		# BOSS: Precinct Captain
+		{ "trigger_x": 2800, "left": 2700, "right": 3100,
+		  "enemies": [
+			{"type": "BOSS", "x": 3050, "y": 280},
 		  ]},
 	]
 
@@ -518,6 +531,173 @@ func _end_encounter():
 		gate_visual.queue_free()
 		gate_visual = null
 	_show_announcement("AREA CLEAR")
+
+func _spawn_enforcer(pos: Vector2):
+	var e = CharacterBody2D.new()
+	e.position = pos
+	e.set_script(load("res://scripts/enemies/cbdc_enforcer.gd"))
+	e.add_to_group("enemies")
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(20, 8)
+	col.shape = shape
+	e.add_child(col)
+
+	# Dark tactical armor body
+	var body = ColorRect.new()
+	body.color = Color(0.13, 0.13, 0.2)
+	body.size = Vector2(26, 40)
+	body.position = Vector2(-13, -44)
+	e.add_child(body)
+
+	var head_rect = ColorRect.new()
+	head_rect.color = Color(0.13, 0.13, 0.2)
+	head_rect.size = Vector2(20, 14)
+	head_rect.position = Vector2(-10, -60)
+	e.add_child(head_rect)
+
+	# Visor (reflective)
+	var visor = ColorRect.new()
+	visor.color = Color(0.4, 0.6, 0.8)
+	visor.size = Vector2(16, 6)
+	visor.position = Vector2(-8, -54)
+	e.add_child(visor)
+
+	# Red CBDC insignia on chest
+	var insignia = ColorRect.new()
+	insignia.color = Color(1, 0.2, 0.2)
+	insignia.size = Vector2(8, 4)
+	insignia.position = Vector2(-4, -32)
+	e.add_child(insignia)
+
+	var shadow = ColorRect.new()
+	shadow.color = Color(0, 0, 0, 0.4)
+	shadow.size = Vector2(24, 5)
+	shadow.position = Vector2(-12, -2)
+	shadow.name = "Shadow"
+	e.add_child(shadow)
+
+	var hp_bg = ColorRect.new()
+	hp_bg.color = Color(0.2, 0, 0)
+	hp_bg.size = Vector2(32, 4)
+	hp_bg.position = Vector2(-16, -68)
+	hp_bg.name = "HPBarBG"
+	e.add_child(hp_bg)
+
+	var hp_bar = ColorRect.new()
+	hp_bar.color = Color(1, 0.2, 0.2)
+	hp_bar.size = Vector2(32, 4)
+	hp_bar.position = Vector2(-16, -68)
+	hp_bar.name = "HPBar"
+	e.add_child(hp_bar)
+
+	var lbl = Label.new()
+	lbl.text = "ENFORCER"
+	lbl.position = Vector2(-30, -80)
+	lbl.add_theme_font_size_override("font_size", 9)
+	lbl.add_theme_color_override("font_color", Color(0.53, 0.67, 1.0))
+	lbl.name = "Label"
+	e.add_child(lbl)
+
+	add_child(e)
+
+func _spawn_boss(pos: Vector2):
+	var boss = CharacterBody2D.new()
+	boss.position = pos
+	boss.set_script(load("res://scripts/enemies/precinct_captain.gd"))
+	boss.add_to_group("enemies")
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(28, 10)
+	col.shape = shape
+	boss.add_child(col)
+
+	# Boss body — dark blue uniform, larger than grunts
+	var body = ColorRect.new()
+	body.color = Color(0.0, 0.13, 0.4)
+	body.size = Vector2(32, 52)
+	body.position = Vector2(-16, -56)
+	boss.add_child(body)
+
+	var head_rect = ColorRect.new()
+	head_rect.color = Color(0.0, 0.13, 0.4)
+	head_rect.size = Vector2(24, 16)
+	head_rect.position = Vector2(-12, -74)
+	boss.add_child(head_rect)
+
+	# Gold cap band
+	var cap = ColorRect.new()
+	cap.color = Color(1, 0.8, 0.2)
+	cap.size = Vector2(28, 4)
+	cap.position = Vector2(-14, -78)
+	boss.add_child(cap)
+
+	# Red stripe on chest
+	var stripe = ColorRect.new()
+	stripe.color = Color(1, 0.2, 0.2)
+	stripe.size = Vector2(4, 30)
+	stripe.position = Vector2(-2, -48)
+	boss.add_child(stripe)
+
+	# Gold epaulettes
+	var ep_l = ColorRect.new()
+	ep_l.color = Color(1, 0.8, 0.2)
+	ep_l.size = Vector2(6, 4)
+	ep_l.position = Vector2(-18, -54)
+	boss.add_child(ep_l)
+
+	var ep_r = ColorRect.new()
+	ep_r.color = Color(1, 0.8, 0.2)
+	ep_r.size = Vector2(6, 4)
+	ep_r.position = Vector2(12, -54)
+	boss.add_child(ep_r)
+
+	# Eyes
+	var eye_l = ColorRect.new()
+	eye_l.color = Color.WHITE
+	eye_l.size = Vector2(4, 4)
+	eye_l.position = Vector2(-8, -70)
+	boss.add_child(eye_l)
+
+	var eye_r = ColorRect.new()
+	eye_r.color = Color.WHITE
+	eye_r.size = Vector2(4, 4)
+	eye_r.position = Vector2(4, -70)
+	boss.add_child(eye_r)
+
+	var shadow = ColorRect.new()
+	shadow.color = Color(0, 0, 0, 0.4)
+	shadow.size = Vector2(30, 6)
+	shadow.position = Vector2(-15, -2)
+	shadow.name = "Shadow"
+	boss.add_child(shadow)
+
+	# HP bars hidden — boss uses screen-fixed boss bar
+	var hp_bg = ColorRect.new()
+	hp_bg.color = Color(0, 0, 0, 0)
+	hp_bg.size = Vector2(1, 1)
+	hp_bg.name = "HPBarBG"
+	boss.add_child(hp_bg)
+
+	var hp_bar = ColorRect.new()
+	hp_bar.color = Color(0, 0, 0, 0)
+	hp_bar.size = Vector2(1, 1)
+	hp_bar.name = "HPBar"
+	boss.add_child(hp_bar)
+
+	add_child(boss)
+
+	# Register surveillance cameras around the boss arena
+	boss.register_cameras([
+		Vector2(2720, 228),
+		Vector2(2900, 228),
+		Vector2(3080, 228),
+	])
+
+	# Boss announcement
+	_show_announcement("BOSS: THE PRECINCT CAPTAIN")
 
 func _show_announcement(text: String):
 	var lbl = Label.new()
