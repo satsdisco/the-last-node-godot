@@ -93,6 +93,9 @@ func _ready():
 	# HUD
 	_create_hud()
 
+	# Invisible walls to keep characters on the street
+	_create_bounds()
+
 	# Level splash card
 	_show_level_splash("LEVEL 1", "THE GRID", "BLOCK 840,003")
 
@@ -100,6 +103,47 @@ func _ready():
 	player.died.connect(_on_player_died)
 
 	print("[TestArena] Ready — WASD to move, Z to attack!")
+
+func _create_bounds():
+	# Top wall — prevents walking into buildings
+	var top_wall = StaticBody2D.new()
+	top_wall.position = Vector2(LEVEL_WIDTH / 2, FLOOR_TOP - 5)
+	var top_shape = CollisionShape2D.new()
+	var top_rect = RectangleShape2D.new()
+	top_rect.size = Vector2(LEVEL_WIDTH, 10)
+	top_shape.shape = top_rect
+	top_wall.add_child(top_shape)
+	add_child(top_wall)
+
+	# Bottom wall — prevents walking off screen
+	var bot_wall = StaticBody2D.new()
+	bot_wall.position = Vector2(LEVEL_WIDTH / 2, FLOOR_BOTTOM + 5)
+	var bot_shape = CollisionShape2D.new()
+	var bot_rect = RectangleShape2D.new()
+	bot_rect.size = Vector2(LEVEL_WIDTH, 10)
+	bot_shape.shape = bot_rect
+	bot_wall.add_child(bot_shape)
+	add_child(bot_wall)
+
+	# Left wall
+	var left_wall = StaticBody2D.new()
+	left_wall.position = Vector2(-5, 180)
+	var left_shape = CollisionShape2D.new()
+	var left_rect = RectangleShape2D.new()
+	left_rect.size = Vector2(10, 360)
+	left_shape.shape = left_rect
+	left_wall.add_child(left_shape)
+	add_child(left_wall)
+
+	# Right wall
+	var right_wall = StaticBody2D.new()
+	right_wall.position = Vector2(LEVEL_WIDTH + 5, 180)
+	var right_shape = CollisionShape2D.new()
+	var right_rect = RectangleShape2D.new()
+	right_rect.size = Vector2(10, 360)
+	right_shape.shape = right_rect
+	right_wall.add_child(right_shape)
+	add_child(right_wall)
 
 func _add_parallax_layer(texture_path: String, z: int, scroll_factor: float, bottom_align_y: int):
 	var tex = load(texture_path) as Texture2D
