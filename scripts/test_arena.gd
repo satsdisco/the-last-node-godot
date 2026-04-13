@@ -270,9 +270,11 @@ func _spawn_enemy(pos: Vector2, type: String):
 	var e = CharacterBody2D.new()
 	e.position = pos
 
-	# Banker has its own script with ranged bill-throwing AI
+	# Each enemy type gets its own script
 	if type == "BANKER":
 		e.set_script(load("res://scripts/enemies/banker.gd"))
+	elif type == "KYC":
+		e.set_script(load("res://scripts/enemies/kyc_agent.gd"))
 	else:
 		e.set_script(load("res://scripts/enemy.gd"))
 		e.set("enemy_name", type)

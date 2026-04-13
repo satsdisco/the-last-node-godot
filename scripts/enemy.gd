@@ -2,6 +2,7 @@ extends CharacterBody2D
 class_name Enemy
 
 ## Base enemy — chase, attack, get grabbed, get thrown, die spectacularly.
+## Has Area2D hurtbox for player hitbox detection.
 
 @export var speed: float = 90.0
 @export var max_hp: int = 30
@@ -10,6 +11,10 @@ class_name Enemy
 @export var attack_cooldown: float = 0.9
 @export var drop_sats: int = 100
 @export var enemy_name: String = "ENEMY"
+
+# State
+enum EnemyState { IDLE, CHASE, ATTACK, HIT, STUNNED, GRABBED, THROWN, DEAD }
+var enemy_state: EnemyState = EnemyState.IDLE
 
 var hp: int
 var stunned_until: float = 0.0
@@ -21,12 +26,57 @@ var pop_z: float = 0.0
 var thrown_until: float = 0.0
 var thrown_dmg: int = 0
 
+# Area2D for hit detection
+var hurtbox_area: Area2D = null
+var attack_hitbox: Area2D = null
+
 signal died_at(pos: Vector2, sats: int)
 
 func _ready():
 	hp = int(max_hp * GameState.enemy_hp_mult())
 	max_hp = hp
 	add_to_group("enemies")
+	_create_hurtbox()
+	_create_attack_hitbox()
+
+func _create_hurtbox():
+	# Enemy hurtbox — player hitbox detects this
+	hurtbox_area = Area2D.new()
+	hurtbox_area.name = "Hurtbox"
+	hurtbox_area.collision_layer = 4   # Layer 3 = enemy hurtboxes
+	hurtbox_area.collision_mask = 0
+	hurtbox_area.monitoring = false
+	hurtbox_area.monitorable = true
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(20, 36)
+	col.shape = shape
+	col.position = Vector2(0, -22)
+	col.name = "HurtboxShape"
+	hurtbox_area.add_child(col)
+
+	add_child(hurtbox_area)
+
+func _create_attack_hitbox():
+	# Enemy attack hitbox — detects player hurtboxes
+	attack_hitbox = Area2D.new()
+	attack_hitbox.name = "AttackHitbox"
+	attack_hitbox.collision_layer = 0
+	attack_hitbox.collision_mask = 8  # Mask = player hurtboxes
+	attack_hitbox.monitoring = true
+	attack_hitbox.monitorable = false
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(attack_range, 16)
+	col.shape = shape
+	col.position = Vector2(attack_range / 2.0, -20)
+	col.name = "AttackShape"
+	col.disabled = true  # Only enabled during attack
+	attack_hitbox.add_child(col)
+
+	add_child(attack_hitbox)
 
 func _physics_process(delta: float):
 	var now = Time.get_ticks_msec() / 1000.0
@@ -176,7 +226,7 @@ func _update_visuals():
 
 	# Pop Z offset on visual children
 	for child in get_children():
-		if child is CollisionShape2D:
+		if child is CollisionShape2D or child is Area2D:
 			continue
 		if child.name == "Shadow":
 			child.scale.x = max(0.5, 1.0 - pop_z / 40.0) * 2.0
