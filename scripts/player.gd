@@ -289,15 +289,23 @@ func _state_hit(_delta: float, _now: float):
 			_change_state(State.IDLE)
 
 func _state_jump(delta: float, now: float):
-	# Allow movement during jump
-	var input_dir = _get_input_dir()
+	# X movement only during jump — no depth (Y) change
+	# This is a 2.5D beat-em-up: jump is visual, depth is locked
 	var move_speed = speed * speed_buff_mult
-	velocity = input_dir * move_speed
+	var x_input = 0.0
+	if Input.is_action_pressed("move_left"):
+		x_input = -1.0
+		facing = -1
+	elif Input.is_action_pressed("move_right"):
+		x_input = 1.0
+		facing = 1
+	velocity = Vector2(x_input * move_speed, 0)
 
 	jump_z += jump_vz * delta
 	jump_vz -= 720.0 * delta
+	jump_z = minf(jump_z, 80.0)  # Cap visual height
 
-	# Attack during jump
+	# Attack during jump (dive attack)
 	if Input.is_action_just_pressed("attack"):
 		try_attack()
 
