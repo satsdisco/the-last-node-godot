@@ -14,17 +14,17 @@ var camera: Camera2D
 
 func _ready():
 	# === BACKGROUNDS — Synth Cities parallax layers ===
+	# Scale by height (360px viewport) so all layers fill vertically.
+	# Foreground pushed down so buildings rise ABOVE the street, not covering it.
 
-	# Layer 1: Far skyline (slowest scroll)
-	_add_parallax_layer("res://assets/backgrounds/synth_back.png", -100, 0.15, 0)
+	# Layer 1: Far skyline (slowest scroll) — fills full height, top-aligned
+	_add_parallax_layer("res://assets/backgrounds/synth_back.png", -100, 0.15, 0, true)
 
-	# Layer 2: Mid buildings
-	_add_parallax_layer("res://assets/backgrounds/synth_middle.png", -80, 0.35, 0)
+	# Layer 2: Mid buildings — fills full height, top-aligned
+	_add_parallax_layer("res://assets/backgrounds/synth_middle.png", -80, 0.35, 0, true)
 
-	# Layer 3: Foreground buildings — positioned so the street in the art
-	# IS the walkable ground. Bottom of image at y=360 (screen bottom),
-	# characters walk on the street area within the image.
-	_add_parallax_layer("res://assets/backgrounds/synth_foreground_themed.png", -60, 0.6, 360)
+	# Layer 3: Foreground buildings — bottom-aligned so street is at walk level
+	_add_parallax_layer("res://assets/backgrounds/synth_foreground_themed.png", -60, 0.6, 380, false)
 
 	# No separate floor rect — the foreground image IS the ground.
 	# Just a subtle darkening strip at the very bottom for depth
@@ -157,7 +157,7 @@ func _create_bounds():
 	right_wall.add_child(right_shape)
 	add_child(right_wall)
 
-func _add_parallax_layer(texture_path: String, z: int, scroll_factor: float, bottom_align_y: int):
+func _add_parallax_layer(texture_path: String, z: int, scroll_factor: float, bottom_align_y: int, scale_by_height: bool = false):
 	var tex = load(texture_path) as Texture2D
 	if not tex:
 		print("[Level] WARNING: %s not found!" % texture_path)
@@ -167,31 +167,39 @@ func _add_parallax_layer(texture_path: String, z: int, scroll_factor: float, bot
 	var tex_h = tex.get_height()
 	var prefix = texture_path.get_file().get_basename() + "_"
 
-	# Calculate Y position — either top-aligned or bottom-aligned to a Y coordinate
-	var y_pos = 0
-	if bottom_align_y > 0:
-		# Scale to fit screen width, bottom-align to the given Y
-		y_pos = bottom_align_y - int(float(tex_h) * (640.0 / float(tex_w)))
+	# Scale factor — by height fills vertically (better for small images),
+	# by width fills horizontally (better for wide foreground art)
+	var scale_factor: float
+	if scale_by_height:
+		scale_factor = 360.0 / float(tex_h)  # Fill viewport height
 	else:
-		# Scale to fill screen height
+		scale_factor = 640.0 / float(tex_w)  # Fill viewport width
+
+	var scaled_w = tex_w * scale_factor
+	var scaled_h = tex_h * scale_factor
+
+	# Y position — top-aligned or bottom-aligned
+	var y_pos: int = 0
+	if bottom_align_y > 0:
+		y_pos = bottom_align_y - int(scaled_h)
+	else:
 		y_pos = 0
 
-	# Tile across the level width, scaled to fill viewport height
-	var scale_factor = 640.0 / float(tex_w)  # Scale to viewport width
-	var tiles_needed = ceili(float(LEVEL_WIDTH) / 640.0) + 2
+	var tiles_needed = ceili(float(LEVEL_WIDTH) / scaled_w) + 2
 
 	for i in range(tiles_needed):
 		var sprite = Sprite2D.new()
 		sprite.texture = tex
 		sprite.centered = false
-		sprite.position = Vector2(i * 640, y_pos)
+		sprite.position = Vector2(i * scaled_w, y_pos)
 		sprite.scale = Vector2(scale_factor, scale_factor)
 		sprite.z_index = z
 		sprite.name = "%s%d" % [prefix, i]
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		add_child(sprite)
 
-	_parallax_layers.append({"prefix": prefix, "factor": scroll_factor})
-	print("[Level] Layer loaded: %s (%dx%d, factor %.2f)" % [texture_path.get_file(), tex_w, tex_h, scroll_factor])
+	_parallax_layers.append({"prefix": prefix, "factor": scroll_factor, "tile_width": scaled_w})
+	print("[Level] Layer loaded: %s (%dx%d, scale %.2fx, factor %.2f)" % [texture_path.get_file(), tex_w, tex_h, scale_factor, scroll_factor])
 
 func _create_player(pos: Vector2) -> CharacterBody2D:
 	var p = CharacterBody2D.new()
