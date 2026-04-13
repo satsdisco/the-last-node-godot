@@ -14,30 +14,28 @@ var camera: Camera2D
 
 func _ready():
 	# === BACKGROUNDS — Synth Cities parallax layers ===
-	# Three layers: far skyline fills full height, mid fills full height,
-	# foreground scales to width and bottom-aligns to street level.
-	# Dark fill behind everything to cover any gaps.
+	# Purple sky fill matches synth_back's purple tone.
+	# Far skyline has purple/blue skyscrapers at the top.
+	# Mid buildings add silhouette depth.
+	# Foreground has the detailed street and storefronts.
 
-	# Dark sky fill — covers entire background so no blue gaps
+	# Sky fill — matches the purple of synth_back so gaps blend naturally
 	var sky_fill = ColorRect.new()
-	sky_fill.color = Color(0.02, 0.03, 0.06)  # Near-black dark blue
+	sky_fill.color = Color(0.25, 0.2, 0.45)  # Purple-blue matching synth_back
 	sky_fill.position = Vector2(-200, 0)
 	sky_fill.size = Vector2(LEVEL_WIDTH + 400, 360)
 	sky_fill.z_index = -110
 	add_child(sky_fill)
 
-	# Layer 1: Far skyline (slowest scroll) — fills full height
+	# Layer 1: Far skyline (slowest scroll) — purple skyscrapers at top
 	_add_parallax_layer("res://assets/backgrounds/synth_back.png", -100, 0.15, 0, true)
 
-	# Layer 2: Mid buildings — fills full height
+	# Layer 2: Mid buildings — dark silhouettes, top-aligned so they don't
+	# block the purple skyline below. Only the building tops show.
 	_add_parallax_layer("res://assets/backgrounds/synth_middle.png", -80, 0.35, 0, true)
 
-	# Layer 2.5: Street-level fill — storefronts, alleyways, graffiti
-	# Fills the gap between mid buildings and foreground street
-	_add_parallax_layer("res://assets/backgrounds/street_fill.png", -70, 0.5, 360, false)
-
-	# Layer 3: Foreground buildings — bottom-aligned to screen bottom
-	# Scale by width so the street detail fills the walkable area
+	# Layer 3: Foreground — the detailed street with storefronts, signs, neon
+	# Bottom-aligned so the street lines up with the walkable area
 	_add_parallax_layer("res://assets/backgrounds/synth_foreground_themed.png", -60, 0.6, 360, false)
 
 	# Subtle darkening at the very bottom for street depth
