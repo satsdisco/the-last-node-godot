@@ -12,7 +12,7 @@ var last_charge_at: float = 0
 func _ready():
 	super._ready()
 	speed = 68
-	max_hp = int(55 * GameState.enemy_hp_mult())
+	max_hp = int(40 * GameState.enemy_hp_mult())
 	hp = max_hp
 	damage = 14
 	attack_range = 32
@@ -20,17 +20,13 @@ func _ready():
 	drop_sats = 250
 	enemy_name = "ENFORCER"
 
-	# Recolor body darker (tactical armor)
-	for child in get_children():
-		if child is ColorRect and child.name != "Shadow" and child.name != "HPBar" and child.name != "HPBarBG":
-			child.color = Color(0.13, 0.13, 0.2)
-
-	# Shield visual
+	# Shield visual overlay (drawn on top of sprite)
 	var shield = ColorRect.new()
 	shield.name = "Shield"
-	shield.color = Color(0.6, 0.8, 1.0)
-	shield.size = Vector2(6, 36)
-	shield.position = Vector2(12, -44)
+	shield.color = Color(0.6, 0.8, 1.0, 0.3)
+	shield.size = Vector2(8, 44)
+	shield.position = Vector2(14, -72)
+	shield.z_index = 1
 	add_child(shield)
 
 func _physics_process(delta):
@@ -85,8 +81,8 @@ func _physics_process(delta):
 	super._physics_process(delta)
 
 func take_hit(dmg: int, from_dir: int):
-	# Shield blocks frontal attacks
-	if shield_intact and from_dir != facing_dir:
+	# Shield blocks frontal attacks (from_dir matches the direction enemy faces)
+	if shield_intact and from_dir == facing_dir:
 		SFX.hit(get_tree())
 		# Block flash
 		var shield_node = get_node_or_null("Shield")
