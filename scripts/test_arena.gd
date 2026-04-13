@@ -695,8 +695,8 @@ func _check_encounters():
 			var waves = enc["waves"] as Array
 			encounter_wave += 1
 			if encounter_wave < waves.size():
-				# Spawn next wave
-				_spawn_wave(waves[encounter_wave])
+				# Spawn next wave with staggered spawns
+				_spawn_wave_staggered(waves[encounter_wave])
 				_show_announcement("WAVE %d" % (encounter_wave + 1))
 			else:
 				_end_encounter()
@@ -730,29 +730,34 @@ func _start_encounter(enc: Dictionary):
 	gate_left = enc["left"]
 	gate_right = enc["right"]
 
-	# Lock camera to encounter area
+	# Smoothly tighten camera to encounter area over 0.3s
 	if camera:
 		_cam_limit_left_saved = camera.limit_left
 		_cam_limit_right_saved = camera.limit_right
-		camera.limit_left = int(gate_left - 40)
-		camera.limit_right = int(gate_right + 40)
+		var tw = create_tween()
+		tw.tween_method(func(v): camera.limit_left = int(v), float(camera.limit_left), gate_left - 40.0, 0.3)
+		tw.parallel().tween_method(func(v): camera.limit_right = int(v), float(camera.limit_right), gate_right + 40.0, 0.3)
 
-	# Physical gate barriers — StaticBody2D so player collides
+	# Physical gate barriers
 	_create_gate_barrier(gate_left, true)
 	_create_gate_barrier(gate_right, false)
 
 	SFX.gate_lock(get_tree())
 
-	# Spawn first wave
-	var waves = enc["waves"] as Array
-	_spawn_wave(waves[0])
-
-	# Announcement
+	# Announcement first, then stagger enemy spawns
 	_show_announcement("ENEMIES INCOMING")
 
-func _spawn_wave(wave: Array):
-	for e_data in wave:
-		_spawn_enemy(Vector2(e_data["x"], e_data["y"]), e_data["type"])
+	# Stagger enemy spawns across frames to prevent hitch
+	var waves = enc["waves"] as Array
+	_spawn_wave_staggered(waves[0])
+
+func _spawn_wave_staggered(wave: Array):
+	# Stagger spawns across frames to prevent frame hitch
+	for i in range(wave.size()):
+		var e_data = wave[i]
+		get_tree().create_timer(i * 0.15).timeout.connect(func():
+			_spawn_enemy(Vector2(e_data["x"], e_data["y"]), e_data["type"])
+		)
 
 func _create_gate_barrier(x_pos: float, is_left: bool):
 	var gate_height = FLOOR_BOTTOM - FLOOR_TOP + 20
@@ -825,10 +830,11 @@ func _end_encounter():
 	gate_left_visual = null
 	gate_right_visual = null
 
-	# Restore camera limits
+	# Smoothly restore camera limits
 	if camera:
-		camera.limit_left = _cam_limit_left_saved
-		camera.limit_right = _cam_limit_right_saved
+		var tw = create_tween()
+		tw.tween_method(func(v): camera.limit_left = int(v), float(camera.limit_left), float(_cam_limit_left_saved), 0.4)
+		tw.parallel().tween_method(func(v): camera.limit_right = int(v), float(camera.limit_right), float(_cam_limit_right_saved), 0.4)
 
 	# Track kills — count how many enemies were in all waves of this encounter
 	var enc = encounters[current_encounter]
