@@ -29,6 +29,11 @@ func _ready():
 
 
 func _ai(now: float):
+	# Spawn delay — idle briefly before acting
+	if now - _spawn_time < 0.4:
+		velocity = Vector2.ZERO
+		return
+
 	var target = _find_target()
 	if not target:
 		return

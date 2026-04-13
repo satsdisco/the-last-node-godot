@@ -36,6 +36,13 @@ func _ready():
 func _physics_process(delta):
 	var now = Time.get_ticks_msec() / 1000.0
 
+	# Spawn delay — idle briefly before acting
+	if now - _spawn_time < 0.5:
+		velocity = Vector2.ZERO
+		_update_visuals()
+		move_and_slide()
+		return
+
 	# Update shield position
 	var target = _find_target()
 	if target:

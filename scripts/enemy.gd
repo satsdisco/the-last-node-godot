@@ -25,6 +25,8 @@ var popped_until: float = 0.0
 var pop_z: float = 0.0
 var thrown_until: float = 0.0
 var thrown_dmg: int = 0
+var _spawn_time: float = 0.0
+var _chase_y_offset: float = 0.0  # Slight Y variation so enemies don't stack
 
 # Area2D for hit detection
 var hurtbox_area: Area2D = null
@@ -36,6 +38,8 @@ func _ready():
 	hp = int(max_hp * GameState.enemy_hp_mult())
 	max_hp = hp
 	add_to_group("enemies")
+	_spawn_time = Time.get_ticks_msec() / 1000.0
+	_chase_y_offset = randf_range(-12, 12)  # Each enemy targets slightly different Y
 	_create_hurtbox()
 	_create_attack_hitbox()
 
@@ -50,9 +54,9 @@ func _create_hurtbox():
 
 	var col = CollisionShape2D.new()
 	var shape = RectangleShape2D.new()
-	shape.size = Vector2(20, 36)
+	shape.size = Vector2(24, 44)
 	col.shape = shape
-	col.position = Vector2(0, -22)
+	col.position = Vector2(0, -50)
 	col.name = "HurtboxShape"
 	hurtbox_area.add_child(col)
 
@@ -104,9 +108,14 @@ func _physics_process(delta: float):
 	else:
 		pop_z = 0
 
-	# Stunned — decay velocity
+	# Stunned — decay velocity + flash white
 	if now < stunned_until:
 		velocity = velocity * 0.85
+		# Visual feedback: flash white while stunned
+		var sprite = get_node_or_null("Sprite") as Sprite2D
+		var flash_on = fmod(Time.get_ticks_msec(), 120) < 60
+		if sprite:
+			sprite.modulate = Color(2.5, 2.5, 2.5) if flash_on else Color.WHITE
 		move_and_slide()
 		_update_visuals()
 		return
@@ -136,20 +145,30 @@ func _activate_attack_hitbox():
 			)
 
 func _ai(now: float):
+	# Brief "notice" delay before chasing — enemies idle for 0.4s after spawn
+	if now - _spawn_time < 0.4:
+		velocity = Vector2.ZERO
+		enemy_state = EnemyState.IDLE
+		return
+
 	var target = _find_target()
 	if not target:
 		return
 
-	var dir = target.global_position - global_position
+	# Chase target with Y-offset so enemies don't all stack on the same pixel
+	var chase_pos = target.global_position + Vector2(0, _chase_y_offset)
+	var dir = chase_pos - global_position
 	var dist = dir.length()
 	facing = 1 if dir.x > 0 else -1
 
 	if dist > attack_range - 4:
 		velocity = dir.normalized() * speed
+		enemy_state = EnemyState.CHASE
 	else:
 		velocity = Vector2.ZERO
 		if now - last_attack_time > attack_cooldown:
 			last_attack_time = now
+			enemy_state = EnemyState.ATTACK
 			_activate_attack_hitbox()
 			if target.has_method("take_hit"):
 				var from_dir = 1 if global_position.x < target.global_position.x else -1
@@ -170,9 +189,10 @@ func _find_target() -> Node2D:
 
 func take_hit(dmg: int, from_dir: int):
 	hp = max(0, hp - dmg)
-	stunned_until = Time.get_ticks_msec() / 1000.0 + 0.22
-	# Knockback scales with damage — heavy hits send them flying
-	var knockback_magnitude = min(200 + dmg * 8, 500)
+	stunned_until = Time.get_ticks_msec() / 1000.0 + 0.25
+	enemy_state = EnemyState.HIT
+	# Knockback scales with damage — heavy hits send them flying further
+	var knockback_magnitude = min(260 + dmg * 10, 600)
 	velocity = Vector2(from_dir * knockback_magnitude, 0)
 
 	# Flash white
@@ -247,7 +267,14 @@ func _die():
 		Pickup.spawn_random_drop(get_parent(), pos + Vector2(randf_range(-15, 15), -8))
 
 	died_at.emit(pos, sats)
-	queue_free()
+
+	# Fade out over 0.3s instead of instantly vanishing
+	enemy_state = EnemyState.DEAD
+	remove_from_group("enemies")
+	set_physics_process(false)
+	var tween = create_tween()
+	tween.tween_property(self, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(queue_free)
 
 var _walk_anim_timer: float = 0.0
 var _walk_frame_idx: int = 0

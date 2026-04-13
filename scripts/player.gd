@@ -10,7 +10,7 @@ class_name Player
 @export var max_hp: int = 100
 @export var base_damage: int = 10
 @export var attack_range: float = 44.0
-@export var attack_cooldown: float = 0.18
+@export var attack_cooldown: float = 0.15
 @export var combo_length: int = 4
 @export var character_name: String = "NODE RUNNER"
 @export var finisher_taunt: String = "VALIDATED."
@@ -47,8 +47,15 @@ const THROW_SPEED: float = 480.0
 var combo_count: int = 0
 var last_attack_time: float = 0.0
 var last_combo_time: float = 0.0
-const COMBO_WINDOW: float = 0.4
+const COMBO_WINDOW: float = 0.35
 const FINISHING_THRESHOLD: float = 0.1
+
+# Movement smoothing
+const ACCEL: float = 1200.0
+const DECEL: float = 1800.0
+
+# Walking dust timer
+var _dust_timer: float = 0.0
 
 # Hitbox Area2D — activates during attack frames
 var hitbox_area: Area2D = null
@@ -243,8 +250,8 @@ func _handle_common_input(now: float):
 
 	return false
 
-func _state_idle(_delta: float, now: float):
-	velocity = Vector2.ZERO
+func _state_idle(delta: float, now: float):
+	velocity = velocity.move_toward(Vector2.ZERO, DECEL * delta)
 
 	if _handle_common_input(now):
 		return
@@ -253,7 +260,7 @@ func _state_idle(_delta: float, now: float):
 	if input_dir.length() > 0:
 		_change_state(State.WALK)
 
-func _state_walk(_delta: float, now: float):
+func _state_walk(delta: float, now: float):
 	if _handle_common_input(now):
 		return
 
@@ -263,7 +270,14 @@ func _state_walk(_delta: float, now: float):
 		return
 
 	var move_speed = speed * speed_buff_mult * (0.6 if grabbed_enemy else 1.0)
-	velocity = input_dir * move_speed
+	var target_vel = input_dir * move_speed
+	velocity = velocity.move_toward(target_vel, ACCEL * delta)
+
+	# Walking dust particles
+	_dust_timer += delta
+	if _dust_timer > 0.18:
+		_dust_timer = 0.0
+		_spawn_walk_dust()
 
 func _state_attack(_delta: float, now: float):
 	# Attack state lasts for attack_cooldown duration, then returns
@@ -374,6 +388,9 @@ func try_attack():
 	var range_px = attack_range
 	var slash_color = Color(1, 0.6, 0, 0.8)
 
+	# Base forward lunge on every attack — slide forward slightly when punching
+	velocity = Vector2(facing * 80, 0)
+
 	match dir_mode:
 		"lunge":
 			dmg = int(dmg * 1.3)
@@ -434,6 +451,9 @@ func try_attack():
 		CombatJuice.shake(get_viewport().get_camera_2d(), intensity, 0.12)
 		# Knockback dust at hit position
 		CombatJuice.knockback_dust(get_parent(), global_position + Vector2(facing * 20, 0), facing)
+		# Camera zoom pulse on heavy hits (combo finishers, specials)
+		if combo_count >= combo_length:
+			_camera_zoom_pulse()
 		# Combo popup at milestone hits
 		if combo_count >= 3 and combo_count % 2 == 1:
 			CombatJuice.combo_popup(get_parent(), global_position + Vector2(0, -40), combo_count)
@@ -564,6 +584,7 @@ func do_special_1():
 	_show_move_name("FULL VALIDATION")
 	invuln_until = Time.get_ticks_msec() / 1000.0 + 0.7
 	CombatJuice.hitstop(get_tree(), 0.06)
+	_camera_zoom_pulse()
 
 	# Green expanding parry ring
 	_spawn_ring(Color(0, 1, 0.4, 0.5), 96)
@@ -585,6 +606,7 @@ func do_special_2():
 	_show_move_name("BROADCAST")
 	CombatJuice.hitstop(get_tree(), 0.08)
 	CombatJuice.shake(get_viewport().get_camera_2d(), 6.0, 0.2)
+	_camera_zoom_pulse()
 
 	# Orange expanding ring
 	_spawn_ring(Color(1, 0.6, 0, 0.6), 96)
@@ -673,6 +695,27 @@ func _spawn_invalid_mark(pos: Vector2):
 	var tween = mark.create_tween()
 	tween.tween_property(mark, "modulate:a", 0.0, 0.5)
 	tween.tween_callback(mark.queue_free)
+
+func _camera_zoom_pulse():
+	var cam = get_viewport().get_camera_2d()
+	if not cam:
+		return
+	var tween = cam.create_tween()
+	tween.tween_property(cam, "zoom", Vector2(1.02, 1.02), 0.05)
+	tween.tween_property(cam, "zoom", Vector2(1.0, 1.0), 0.05)
+
+func _spawn_walk_dust():
+	var dust = ColorRect.new()
+	dust.color = Color(0.5, 0.45, 0.4, 0.35)
+	dust.size = Vector2(3, 2)
+	dust.global_position = global_position + Vector2(randf_range(-6, 6), randf_range(-2, 1))
+	dust.z_index = int(global_position.y) - 1
+	get_parent().add_child(dust)
+	var tween = dust.create_tween()
+	tween.tween_property(dust, "global_position:y", dust.global_position.y - randf_range(4, 8), 0.3)
+	tween.parallel().tween_property(dust, "modulate:a", 0.0, 0.3)
+	tween.parallel().tween_property(dust, "scale", Vector2(2, 2), 0.3)
+	tween.tween_callback(dust.queue_free)
 
 func _no_sats_flash():
 	var lbl = Label.new()

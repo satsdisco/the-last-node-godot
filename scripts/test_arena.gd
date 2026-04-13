@@ -147,8 +147,12 @@ func _ready():
 	_splash_active = true
 	_show_level_splash("LEVEL 1", "THE GRID", "BLOCK 840,003")
 
-	# Connect player death
+	# Connect player death and damage flash
 	player.died.connect(_on_player_died)
+	player.hit_taken.connect(_on_player_hit)
+
+	# Vignette — dark edges for atmosphere
+	_create_vignette(hud)
 
 	# Track stats
 	_level_start_time = Time.get_ticks_msec() / 1000.0
@@ -395,20 +399,24 @@ func _spawn_enemy(pos: Vector2, type: String):
 	add_child(e)
 
 func _spawn_rain():
-	for i in range(40):
+	# More drops, longer streaks, varied opacity for depth
+	for i in range(70):
 		var drop = ColorRect.new()
-		drop.color = Color(0.53, 0.67, 1.0, 0.35)
-		drop.size = Vector2(1, 6)
-		drop.rotation = deg_to_rad(15)
-		drop.position = Vector2(randf() * 640, randf() * 220)
+		var alpha = randf_range(0.15, 0.45)
+		var streak_len = randf_range(6, 14)
+		drop.color = Color(0.53, 0.67, 1.0, alpha)
+		drop.size = Vector2(1, streak_len)
+		drop.rotation = deg_to_rad(12)
+		drop.position = Vector2(randf() * 700, randf() * 260)
 		drop.z_index = 100
 		add_child(drop)
 
+		var fall_speed = randf_range(0.25, 0.6)
 		var tween = create_tween().set_loops()
-		tween.tween_property(drop, "position:y", 240.0, randf_range(0.4, 0.8))
+		tween.tween_property(drop, "position:y", 280.0, fall_speed)
 		tween.tween_callback(func():
-			drop.position.y = -10
-			drop.position.x = randf() * 640
+			drop.position.y = randf_range(-20, -5)
+			drop.position.x = randf() * 700
 		)
 
 func _create_hud():
@@ -419,6 +427,14 @@ func _create_hud():
 	var green = Color(0, 1, 0.4)
 	var orange = Color(1, 0.8, 0.2)
 	var dim_green = Color(0, 0.5, 0.2)
+
+	# === HP BAR DARK BACKGROUND PANEL ===
+	var hp_panel = ColorRect.new()
+	hp_panel.color = Color(0, 0, 0, 0.6)
+	hp_panel.position = Vector2(4, 2)
+	hp_panel.size = Vector2(200, 42)
+	hp_panel.name = "HPPanel"
+	hud.add_child(hp_panel)
 
 	# === TOP LEFT: Terminal-style player status ===
 	var name_lbl = Label.new()
@@ -433,22 +449,22 @@ func _create_hud():
 	hp_lbl.name = "HPLabel"
 	hp_lbl.text = "HP [██████████] 100/100"
 	hp_lbl.position = Vector2(8, 18)
-	hp_lbl.add_theme_font_size_override("font_size", 10)
+	hp_lbl.add_theme_font_size_override("font_size", 11)
 	hp_lbl.add_theme_color_override("font_color", green)
 	hud.add_child(hp_lbl)
 
-	# Thin color bar underneath
+	# Color bar underneath — bigger for visibility
 	var bar_bg = ColorRect.new()
 	bar_bg.color = Color(0, 0.08, 0)
-	bar_bg.position = Vector2(8, 32)
-	bar_bg.size = Vector2(180, 4)
+	bar_bg.position = Vector2(8, 34)
+	bar_bg.size = Vector2(190, 6)
 	hud.add_child(bar_bg)
 
 	var bar = ColorRect.new()
 	bar.name = "HPBar"
 	bar.color = green
-	bar.position = Vector2(8, 32)
-	bar.size = Vector2(180, 4)
+	bar.position = Vector2(8, 34)
+	bar.size = Vector2(190, 6)
 	hud.add_child(bar)
 
 	# Weapon display
@@ -461,9 +477,16 @@ func _create_hud():
 	hud.add_child(weapon_lbl)
 
 	# === TOP RIGHT: Sats + Block height ===
+	# Dark background panel for sats area
+	var sats_panel = ColorRect.new()
+	sats_panel.color = Color(0, 0, 0, 0.6)
+	sats_panel.position = Vector2(480, 2)
+	sats_panel.size = Vector2(156, 38)
+	hud.add_child(sats_panel)
+
 	var sats_lbl = Label.new()
 	sats_lbl.name = "SatsLabel"
-	sats_lbl.text = "SATS: 3,000"
+	sats_lbl.text = "₿ SATS: 3,000"
 	sats_lbl.position = Vector2(490, 4)
 	sats_lbl.add_theme_font_size_override("font_size", 12)
 	sats_lbl.add_theme_color_override("font_color", orange)
@@ -493,13 +516,14 @@ func _create_hud():
 	combo_lbl.modulate.a = 0.0
 	hud.add_child(combo_lbl)
 
-	# State debug label (shows current player state)
+	# State debug label — hidden in release, visible only for dev
 	var state_lbl = Label.new()
 	state_lbl.name = "StateLabel"
 	state_lbl.text = ""
 	state_lbl.position = Vector2(8, 42)
 	state_lbl.add_theme_font_size_override("font_size", 8)
 	state_lbl.add_theme_color_override("font_color", dim_green)
+	state_lbl.visible = false  # Hidden — debug info players shouldn't see
 	hud.add_child(state_lbl)
 
 	# === BOTTOM: Status line with blinking cursor ===
@@ -595,7 +619,7 @@ func _process(delta):
 	var bar = hud.get_node_or_null("HPBar")
 	if bar:
 		var pct = float(player.hp) / float(player.max_hp)
-		bar.size.x = 180.0 * pct
+		bar.size.x = 190.0 * pct
 		if pct < 0.3:
 			bar.color = Color(1, 0.2, 0.2)
 		elif pct < 0.6:
@@ -603,10 +627,10 @@ func _process(delta):
 		else:
 			bar.color = Color(0, 1, 0.4)
 
-	# Sats with comma formatting
+	# Sats with comma formatting and bitcoin symbol
 	var sats_lbl = hud.get_node_or_null("SatsLabel")
 	if sats_lbl:
-		sats_lbl.text = "SATS: %s" % _format_sats(GameState.sats)
+		sats_lbl.text = "₿ SATS: %s" % _format_sats(GameState.sats)
 
 	# Block height ticks up every 10s
 	_block_tick_timer += delta
@@ -1440,3 +1464,67 @@ func _on_level_complete():
 	# Finally show prompt then pause
 	reveal.tween_property(prompt, "modulate:a", 1.0, 0.2)
 	reveal.tween_callback(func(): get_tree().paused = true)
+
+func _on_player_hit(_damage: int):
+	# Flash HP bar red briefly when taking damage
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
+	var bar = hud.get_node_or_null("HPBar")
+	if bar:
+		var orig_color = bar.color
+		bar.color = Color(1, 1, 1)
+		get_tree().create_timer(0.06).timeout.connect(func():
+			if is_instance_valid(bar):
+				bar.color = Color(1, 0.15, 0.1)
+				get_tree().create_timer(0.08).timeout.connect(func():
+					if is_instance_valid(bar):
+						# Restore proper color based on current HP
+						var pct = float(player.hp) / float(player.max_hp)
+						if pct < 0.3:
+							bar.color = Color(1, 0.2, 0.2)
+						elif pct < 0.6:
+							bar.color = Color(1, 0.7, 0)
+						else:
+							bar.color = Color(0, 1, 0.4)
+				)
+		)
+	# Flash the HP panel red too
+	var panel = hud.get_node_or_null("HPPanel")
+	if panel:
+		panel.color = Color(0.3, 0, 0, 0.7)
+		get_tree().create_timer(0.15).timeout.connect(func():
+			if is_instance_valid(panel):
+				panel.color = Color(0, 0, 0, 0.6)
+		)
+
+func _create_vignette(hud: CanvasLayer):
+	# Subtle dark edges around the screen for atmosphere
+	# Top edge
+	var top = ColorRect.new()
+	top.color = Color(0, 0, 0, 0.4)
+	top.position = Vector2(0, 0)
+	top.size = Vector2(640, 24)
+	top.z_index = 50
+	hud.add_child(top)
+	# Bottom edge
+	var bottom = ColorRect.new()
+	bottom.color = Color(0, 0, 0, 0.5)
+	bottom.position = Vector2(0, 336)
+	bottom.size = Vector2(640, 24)
+	bottom.z_index = 50
+	hud.add_child(bottom)
+	# Left edge
+	var left = ColorRect.new()
+	left.color = Color(0, 0, 0, 0.3)
+	left.position = Vector2(0, 0)
+	left.size = Vector2(16, 360)
+	left.z_index = 50
+	hud.add_child(left)
+	# Right edge
+	var right = ColorRect.new()
+	right.color = Color(0, 0, 0, 0.3)
+	right.position = Vector2(624, 0)
+	right.size = Vector2(16, 360)
+	right.z_index = 50
+	hud.add_child(right)
