@@ -2,6 +2,7 @@ extends CharacterBody2D
 class_name Player
 
 ## Complete player class — full combat system from the design doc.
+## State machine driven: IDLE, WALK, ATTACK, HIT, JUMP, GRAB, DOWN.
 ## Movement, combos, directional attacks, grabs, specials, finishers.
 
 # Stats — overridden by character subclasses
@@ -16,6 +17,11 @@ class_name Player
 @export var special_1_cost: int = 500
 @export var special_2_cost: int = 1000
 @export var super_cost: int = 5000
+
+# State machine
+enum State { IDLE, WALK, ATTACK, HIT, JUMP, GRAB, DOWN }
+var state: State = State.IDLE
+var state_timer: float = 0.0
 
 # State
 var hp: int
@@ -44,20 +50,109 @@ var last_combo_time: float = 0.0
 const COMBO_WINDOW: float = 0.4
 const FINISHING_THRESHOLD: float = 0.1
 
+# Hitbox Area2D — activates during attack frames
+var hitbox_area: Area2D = null
+var hurtbox_area: Area2D = null
+
 signal died
 signal hit_taken(damage: int)
+signal state_changed(new_state: State)
 
 func _ready():
 	hp = max_hp
 	add_to_group("players")
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_create_hitbox()
+	_create_hurtbox()
+
+func _create_hitbox():
+	# Attack hitbox — activated only during ATTACK state
+	hitbox_area = Area2D.new()
+	hitbox_area.name = "Hitbox"
+	hitbox_area.collision_layer = 2  # Layer 2 = player attacks
+	hitbox_area.collision_mask = 4   # Mask 4 = enemy hurtboxes
+	hitbox_area.monitoring = true
+	hitbox_area.monitorable = false
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(attack_range, 20)
+	col.shape = shape
+	col.position = Vector2(attack_range / 2.0, -20)
+	col.name = "HitboxShape"
+	hitbox_area.add_child(col)
+
+	# Start disabled
+	col.disabled = true
+	add_child(hitbox_area)
+
+func _create_hurtbox():
+	# Permanent hurtbox — enemies detect this to deal damage
+	hurtbox_area = Area2D.new()
+	hurtbox_area.name = "Hurtbox"
+	hurtbox_area.collision_layer = 8  # Layer 4 = player hurtboxes
+	hurtbox_area.collision_mask = 0
+	hurtbox_area.monitoring = false
+	hurtbox_area.monitorable = true
+
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(18, 36)
+	col.shape = shape
+	col.position = Vector2(0, -22)
+	col.name = "HurtboxShape"
+	hurtbox_area.add_child(col)
+
+	add_child(hurtbox_area)
+
+func _activate_hitbox():
+	var shape = hitbox_area.get_node("HitboxShape")
+	if shape:
+		shape.disabled = false
+		# Position hitbox in facing direction
+		shape.position.x = facing * attack_range / 2.0
+
+func _deactivate_hitbox():
+	var shape = hitbox_area.get_node("HitboxShape")
+	if shape:
+		shape.disabled = true
+
+func _change_state(new_state: State):
+	# Exit old state
+	match state:
+		State.ATTACK:
+			_deactivate_hitbox()
+			is_attacking = false
+		State.GRAB:
+			pass
+		State.DOWN:
+			pass
+
+	state = new_state
+	state_timer = 0.0
+	state_changed.emit(new_state)
+
+	# Enter new state
+	match new_state:
+		State.ATTACK:
+			is_attacking = true
+			_activate_hitbox()
+		State.JUMP:
+			is_jumping = true
+		State.HIT:
+			pass
+		State.DOWN:
+			pass
 
 func _physics_process(delta: float):
 	var now = Time.get_ticks_msec() / 1000.0
+	state_timer += delta
 
 	# Release stale grab
 	if grabbed_enemy and (now > grab_until or not is_instance_valid(grabbed_enemy)):
 		release_grab()
+		if state == State.GRAB:
+			_change_state(State.IDLE)
 
 	# Expire buffs
 	if now > damage_buff_until:
@@ -65,7 +160,35 @@ func _physics_process(delta: float):
 	if now > speed_buff_until:
 		speed_buff_mult = 1.0
 
-	# Movement
+	# State machine tick
+	match state:
+		State.IDLE:
+			_state_idle(delta, now)
+		State.WALK:
+			_state_walk(delta, now)
+		State.ATTACK:
+			_state_attack(delta, now)
+		State.HIT:
+			_state_hit(delta, now)
+		State.JUMP:
+			_state_jump(delta, now)
+		State.GRAB:
+			_state_grab(delta, now)
+		State.DOWN:
+			_state_down(delta, now)
+
+	# Update grabbed enemy position
+	if grabbed_enemy and is_instance_valid(grabbed_enemy):
+		grabbed_enemy.global_position = global_position + Vector2(facing * 20, -4)
+		grabbed_enemy.velocity = Vector2.ZERO
+
+	# Visual updates
+	_update_visuals()
+	move_and_slide()
+
+# ==== STATE HANDLERS ====
+
+func _get_input_dir() -> Vector2:
 	var input_dir = Vector2.ZERO
 	if Input.is_action_pressed("move_left"):
 		input_dir.x -= 1
@@ -77,34 +200,25 @@ func _physics_process(delta: float):
 		input_dir.y -= 1
 	if Input.is_action_pressed("move_down"):
 		input_dir.y += 1
-
 	if input_dir.length() > 0:
 		input_dir = input_dir.normalized()
+	return input_dir
 
-	var move_speed = speed * speed_buff_mult * (0.6 if grabbed_enemy else 1.0)
-	velocity = input_dir * move_speed
-
+func _handle_common_input(now: float):
 	# Jump
-	if Input.is_action_just_pressed("jump") and not is_jumping and not grabbed_enemy:
-		is_jumping = true
+	if Input.is_action_just_pressed("jump") and not grabbed_enemy:
+		_change_state(State.JUMP)
 		jump_vz = 260.0
 		SFX.jump(get_tree())
-
-	if is_jumping:
-		jump_z += jump_vz * delta
-		jump_vz -= 720.0 * delta
-		if jump_z <= 0:
-			jump_z = 0
-			jump_vz = 0
-			is_jumping = false
+		return true
 
 	# Grab button
 	if Input.is_action_just_pressed("grab"):
 		if grabbed_enemy:
-			# Throw in facing direction
 			throw_enemy()
 		else:
 			try_grab()
+		return true
 
 	# Attack button
 	if Input.is_action_just_pressed("attack"):
@@ -112,6 +226,7 @@ func _physics_process(delta: float):
 			strike_grabbed()
 		else:
 			try_attack()
+		return true
 
 	# Special button
 	if Input.is_action_just_pressed("special"):
@@ -121,15 +236,98 @@ func _physics_process(delta: float):
 			try_special_2()
 		else:
 			try_special_1()
+		return true
 
-	# Update grabbed enemy position
-	if grabbed_enemy and is_instance_valid(grabbed_enemy):
-		grabbed_enemy.global_position = global_position + Vector2(facing * 20, -4)
-		grabbed_enemy.velocity = Vector2.ZERO
+	return false
 
-	# Visual updates
-	_update_visuals()
-	move_and_slide()
+func _state_idle(_delta: float, now: float):
+	velocity = Vector2.ZERO
+
+	if _handle_common_input(now):
+		return
+
+	var input_dir = _get_input_dir()
+	if input_dir.length() > 0:
+		_change_state(State.WALK)
+
+func _state_walk(_delta: float, now: float):
+	if _handle_common_input(now):
+		return
+
+	var input_dir = _get_input_dir()
+	if input_dir.length() == 0:
+		_change_state(State.IDLE)
+		return
+
+	var move_speed = speed * speed_buff_mult * (0.6 if grabbed_enemy else 1.0)
+	velocity = input_dir * move_speed
+
+func _state_attack(_delta: float, now: float):
+	# Attack state lasts for attack_cooldown duration, then returns
+	velocity = velocity * 0.85  # Decelerate during attack
+	if state_timer > 0.15:
+		_change_state(State.IDLE)
+		return
+
+	# Allow chaining into next attack during combo window
+	if Input.is_action_just_pressed("attack") and state_timer > 0.08:
+		if grabbed_enemy:
+			strike_grabbed()
+		else:
+			try_attack()
+
+func _state_hit(_delta: float, _now: float):
+	# Knockback deceleration
+	velocity = velocity * 0.88
+	if state_timer > 0.3:
+		if hp <= 0:
+			_change_state(State.DOWN)
+		else:
+			_change_state(State.IDLE)
+
+func _state_jump(delta: float, now: float):
+	# Allow movement during jump
+	var input_dir = _get_input_dir()
+	var move_speed = speed * speed_buff_mult
+	velocity = input_dir * move_speed
+
+	jump_z += jump_vz * delta
+	jump_vz -= 720.0 * delta
+
+	# Attack during jump
+	if Input.is_action_just_pressed("attack"):
+		try_attack()
+
+	if jump_z <= 0:
+		jump_z = 0
+		jump_vz = 0
+		is_jumping = false
+		_change_state(State.IDLE)
+
+func _state_grab(_delta: float, now: float):
+	# Move slowly while grabbing
+	var input_dir = _get_input_dir()
+	var move_speed = speed * speed_buff_mult * 0.6
+	velocity = input_dir * move_speed
+
+	# Grab input
+	if Input.is_action_just_pressed("grab"):
+		throw_enemy()
+		return
+	if Input.is_action_just_pressed("attack"):
+		strike_grabbed()
+		return
+
+	# Auto-release after hold time
+	if not grabbed_enemy or not is_instance_valid(grabbed_enemy):
+		_change_state(State.IDLE)
+
+func _state_down(_delta: float, _now: float):
+	velocity = velocity * 0.9
+	# DOWN state — player is knocked out
+	# Will be extended with revive logic for co-op
+	if state_timer > 1.0:
+		die()
 
 # ==== ATTACKS ====
 
@@ -228,8 +426,8 @@ func try_attack():
 		combo_count = 0
 
 	SFX.attack(get_tree())
-	is_attacking = true
-	get_tree().create_timer(0.15).timeout.connect(func(): is_attacking = false)
+	# Transition to ATTACK state (handles hitbox activation + timer)
+	_change_state(State.ATTACK)
 
 func _trigger_finisher(enemy: Node):
 	# Instant kill + taunt text popup
@@ -281,6 +479,7 @@ func try_grab():
 		if nearest.has_method("set_grabbed"):
 			nearest.set_grabbed(true)
 		SFX.grab(get_tree())
+		_change_state(State.GRAB)
 
 func release_grab():
 	if grabbed_enemy and is_instance_valid(grabbed_enemy):
@@ -307,6 +506,7 @@ func strike_grabbed():
 func throw_enemy():
 	if not grabbed_enemy or not is_instance_valid(grabbed_enemy):
 		release_grab()
+		_change_state(State.IDLE)
 		return
 	var thrown = grabbed_enemy
 	release_grab()
@@ -314,6 +514,7 @@ func throw_enemy():
 		thrown.be_thrown(facing * THROW_SPEED)
 	SFX.throw_enemy(get_tree())
 	CombatJuice.shake(get_viewport().get_camera_2d(), 4.0, 0.1)
+	_change_state(State.IDLE)
 
 # ==== SPECIALS ====
 
@@ -488,10 +689,15 @@ func take_hit(damage: int, from_dir: int):
 	var now = Time.get_ticks_msec() / 1000.0
 	if now < invuln_until:
 		return
+	if state == State.DOWN:
+		return
 	invuln_until = now + 0.5
 	hp = max(0, hp - damage)
 	velocity = Vector2(from_dir * 240, 0)
 	SFX.player_hurt(get_tree())
+
+	# Transition to HIT state (interrupts any current state)
+	_change_state(State.HIT)
 
 	# Flash visual children white
 	for child in get_children():
@@ -503,8 +709,6 @@ func take_hit(damage: int, from_dir: int):
 			)
 
 	hit_taken.emit(damage)
-	if hp <= 0:
-		die()
 
 func die():
 	died.emit()
@@ -514,7 +718,7 @@ func die():
 func _update_visuals():
 	# Jump Z offset on visual children
 	for child in get_children():
-		if child is CollisionShape2D or child is Camera2D:
+		if child is CollisionShape2D or child is Camera2D or child is Area2D:
 			continue
 		if child.name == "Shadow":
 			child.scale.x = max(0.5, 1.0 - jump_z / 80.0) * 2.5
