@@ -4,7 +4,7 @@ class_name Banker
 ## Banker — keeps distance and throws fiat bill projectiles.
 ## Taunts the player with anti-bitcoin rhetoric.
 
-var ideal_distance: float = 120.0
+var ideal_distance: float = 80.0
 var last_taunt_at: float = 0
 
 const TAUNTS = [
@@ -27,10 +27,6 @@ func _ready():
 	drop_sats = 100
 	enemy_name = "BANKER"
 
-	# Recolor to money green
-	for child in get_children():
-		if child is ColorRect and child.name != "Shadow" and child.name != "HPBar" and child.name != "HPBarBG":
-			child.color = Color(0, 0.5, 0.2)
 
 func _ai(now: float):
 	var target = _find_target()
@@ -60,12 +56,18 @@ func _ai(now: float):
 		_taunt()
 
 func _throw_bill(_target: Node2D, dir: int):
+	enemy_state = EnemyState.ATTACK
+	last_attack_time = Time.get_ticks_msec() / 1000.0
 	var bill = _BillProjectile.new()
 	bill.dir = dir
 	bill.bill_damage = int(damage * GameState.enemy_dmg_mult())
 	bill.global_position = global_position + Vector2(dir * 10, -20)
 	bill.z_index = int(global_position.y) + 5
 	get_parent().add_child(bill)
+	# Small screen shake on throw
+	CombatJuice.shake(get_viewport().get_camera_2d(), 2.0, 0.08)
+	# Reset attack state after brief window
+	get_tree().create_timer(0.4).timeout.connect(func(): enemy_state = EnemyState.IDLE)
 
 
 ## Inner class for bill projectile — uses _process for reliable collision
@@ -76,12 +78,18 @@ class _BillProjectile extends ColorRect:
 	var lifetime: float = 0.0
 
 	func _ready():
-		color = Color(0, 0.8, 0.3)
-		size = Vector2(10, 5)
+		color = Color(0, 0.9, 0.3)
+		size = Vector2(14, 7)
+		rotation = dir * 0.15  # Slight angle for flair
+		# Pulse/flash as it travels
+		var pulse_tween = create_tween().set_loops()
+		pulse_tween.tween_property(self, "modulate", Color(1.4, 1.4, 1.0), 0.1)
+		pulse_tween.tween_property(self, "modulate", Color(1.0, 1.0, 1.0), 0.1)
 
 	func _process(delta):
 		lifetime += delta
 		global_position.x += dir * bill_speed * delta
+		rotation += dir * delta * 1.5  # Slow spin in flight
 
 		# Check collision with players — use X and Y separately for 2.5D
 		for p in get_tree().get_nodes_in_group("players"):
