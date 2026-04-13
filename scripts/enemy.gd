@@ -260,40 +260,44 @@ func _update_visuals():
 		hp_bar.size.x = 32.0 * pct
 
 	# Sprite animation — maps enemy state to sheet frames
-	# Two layouts supported:
-	#   13-frame (KYC): 0-1=idle, 2-5=walk, 6-8=attack, 9-10=hit, 11-12=death
-	#   6-frame (Banker): 0=idle, 1-2=walk, 3=attack, 4=hit, 5=death
+	# Layouts:
+	#   13-frame: 0-1=idle, 2-5=walk, 6-8=attack, 9-10=hit, 11-12=death
+	#   8-frame (drone): 0-1=idle, 2-3=move, 4-5=attack, 6=hit, 7=death
 	var sprite = get_node_or_null("Sprite") as Sprite2D
 	if sprite:
 		sprite.flip_h = (facing == 1)  # Enemies face left by default in art
 		var now = Time.get_ticks_msec() / 1000.0
-		var is_13 = sprite.hframes == 13
+		var nf = sprite.hframes
+		var is_drone = (nf == 8)
 
 		if hp <= 0:
-			sprite.frame = 12 if is_13 else 5  # death (on ground)
+			sprite.frame = 7 if is_drone else 12
 		elif now < stunned_until or enemy_state == EnemyState.HIT:
-			sprite.frame = 9 if is_13 else 4  # hit
+			sprite.frame = 6 if is_drone else 9
 		elif enemy_state == EnemyState.ATTACK:
-			# Animate through attack frames
-			if is_13:
+			if is_drone:
+				var atk_toggle = int(fmod(now, 0.6) * 2) % 2
+				sprite.frame = 4 + atk_toggle  # 4 or 5
+			else:
 				var time_since_atk = now - last_attack_time
 				var atk_phase = clampf(time_since_atk / attack_cooldown, 0.0, 0.99)
 				sprite.frame = 6 + int(atk_phase * 3)  # 6, 7, 8
-			else:
-				sprite.frame = 3
 		elif enemy_state == EnemyState.CHASE:
 			_walk_anim_timer += get_physics_process_delta_time()
-			if _walk_anim_timer > 0.15:
-				_walk_anim_timer = 0.0
-				_walk_frame_idx = (_walk_frame_idx + 1) % (4 if is_13 else 2)
-			sprite.frame = (2 + _walk_frame_idx) if is_13 else (1 + _walk_frame_idx)
-		else:
-			# Idle — toggle between 2 frames for 13-frame sheets
-			if is_13:
-				var idle_toggle = int(fmod(now, 1.0) * 2) % 2
-				sprite.frame = idle_toggle  # 0 or 1
+			if is_drone:
+				if _walk_anim_timer > 0.12:
+					_walk_anim_timer = 0.0
+					_walk_frame_idx = 1 - _walk_frame_idx
+				sprite.frame = 2 + _walk_frame_idx  # 2 or 3
 			else:
-				sprite.frame = 0
+				if _walk_anim_timer > 0.15:
+					_walk_anim_timer = 0.0
+					_walk_frame_idx = (_walk_frame_idx + 1) % 4
+				sprite.frame = 2 + _walk_frame_idx  # 2-5
+		else:
+			# Idle toggle
+			var idle_toggle = int(fmod(now, 1.0) * 2) % 2
+			sprite.frame = idle_toggle  # 0 or 1
 
 		# Critical flash on sprite
 		if get_hp_pct() < 0.1 and get_hp_pct() > 0:

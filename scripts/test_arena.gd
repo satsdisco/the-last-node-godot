@@ -865,32 +865,17 @@ func _spawn_enforcer(pos: Vector2):
 	col.shape = shape
 	e.add_child(col)
 
-	# Dark tactical armor body
-	var body = ColorRect.new()
-	body.color = Color(0.13, 0.13, 0.2)
-	body.size = Vector2(26, 40)
-	body.position = Vector2(-13, -44)
-	e.add_child(body)
-
-	var head_rect = ColorRect.new()
-	head_rect.color = Color(0.13, 0.13, 0.2)
-	head_rect.size = Vector2(20, 14)
-	head_rect.position = Vector2(-10, -60)
-	e.add_child(head_rect)
-
-	# Visor (reflective)
-	var visor = ColorRect.new()
-	visor.color = Color(0.4, 0.6, 0.8)
-	visor.size = Vector2(16, 6)
-	visor.position = Vector2(-8, -54)
-	e.add_child(visor)
-
-	# Red CBDC insignia on chest
-	var insignia = ColorRect.new()
-	insignia.color = Color(1, 0.2, 0.2)
-	insignia.size = Vector2(8, 4)
-	insignia.position = Vector2(-4, -32)
-	e.add_child(insignia)
+	# Sprite from sheet — 13 frames, same layout as KYC/Banker
+	var sheet_tex = load("res://assets/sprites/characters/enforcer_sheet.png")
+	if sheet_tex:
+		var sprite = Sprite2D.new()
+		sprite.texture = sheet_tex
+		sprite.hframes = 13
+		sprite.frame = 0
+		sprite.name = "Sprite"
+		sprite.position = Vector2(0, -64)
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		e.add_child(sprite)
 
 	var shadow = ColorRect.new()
 	shadow.color = Color(0, 0, 0, 0.4)
@@ -935,58 +920,17 @@ func _spawn_boss(pos: Vector2):
 	col.shape = shape
 	boss.add_child(col)
 
-	# Boss body — dark blue uniform, larger than grunts
-	var body = ColorRect.new()
-	body.color = Color(0.0, 0.13, 0.4)
-	body.size = Vector2(32, 52)
-	body.position = Vector2(-16, -56)
-	boss.add_child(body)
-
-	var head_rect = ColorRect.new()
-	head_rect.color = Color(0.0, 0.13, 0.4)
-	head_rect.size = Vector2(24, 16)
-	head_rect.position = Vector2(-12, -74)
-	boss.add_child(head_rect)
-
-	# Gold cap band
-	var cap = ColorRect.new()
-	cap.color = Color(1, 0.8, 0.2)
-	cap.size = Vector2(28, 4)
-	cap.position = Vector2(-14, -78)
-	boss.add_child(cap)
-
-	# Red stripe on chest
-	var stripe = ColorRect.new()
-	stripe.color = Color(1, 0.2, 0.2)
-	stripe.size = Vector2(4, 30)
-	stripe.position = Vector2(-2, -48)
-	boss.add_child(stripe)
-
-	# Gold epaulettes
-	var ep_l = ColorRect.new()
-	ep_l.color = Color(1, 0.8, 0.2)
-	ep_l.size = Vector2(6, 4)
-	ep_l.position = Vector2(-18, -54)
-	boss.add_child(ep_l)
-
-	var ep_r = ColorRect.new()
-	ep_r.color = Color(1, 0.8, 0.2)
-	ep_r.size = Vector2(6, 4)
-	ep_r.position = Vector2(12, -54)
-	boss.add_child(ep_r)
-
-	# Eyes
-	var eye_l = ColorRect.new()
-	eye_l.color = Color.WHITE
-	eye_l.size = Vector2(4, 4)
-	eye_l.position = Vector2(-8, -70)
-	boss.add_child(eye_l)
-
-	var eye_r = ColorRect.new()
-	eye_r.color = Color.WHITE
-	eye_r.size = Vector2(4, 4)
-	eye_r.position = Vector2(4, -70)
-	boss.add_child(eye_r)
+	# Boss sprite — 13 frames at 160x160 (1.5x player size)
+	var sheet_tex = load("res://assets/sprites/characters/captain_sheet.png")
+	if sheet_tex:
+		var sprite = Sprite2D.new()
+		sprite.texture = sheet_tex
+		sprite.hframes = 13
+		sprite.frame = 0
+		sprite.name = "Sprite"
+		sprite.position = Vector2(0, -80)  # Taller sprite, offset more
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		boss.add_child(sprite)
 
 	var shadow = ColorRect.new()
 	shadow.color = Color(0, 0, 0, 0.4)
@@ -1032,17 +976,17 @@ func _spawn_drone(pos: Vector2):
 	col.shape = shape
 	e.add_child(col)
 
-	var body = ColorRect.new()
-	body.color = Color(0.25, 0.25, 0.3)
-	body.size = Vector2(20, 14)
-	body.position = Vector2(-10, -18)
-	e.add_child(body)
-
-	var eye = ColorRect.new()
-	eye.color = Color(1, 0.1, 0.1)
-	eye.size = Vector2(6, 4)
-	eye.position = Vector2(-3, -14)
-	e.add_child(eye)
+	# Drone sprite — 8 frames at 64x64 (small enemy)
+	var sheet_tex = load("res://assets/sprites/characters/drone_sheet.png")
+	if sheet_tex:
+		var sprite = Sprite2D.new()
+		sprite.texture = sheet_tex
+		sprite.hframes = 8
+		sprite.frame = 0
+		sprite.name = "Sprite"
+		sprite.position = Vector2(0, -32)  # Small, hovers above ground
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		e.add_child(sprite)
 
 	var shadow = ColorRect.new()
 	shadow.color = Color(0, 0, 0, 0.3)
