@@ -111,9 +111,29 @@ func _physics_process(delta: float):
 		_update_visuals()
 		return
 
+	# Update attack hitbox facing direction
+	_update_attack_hitbox_facing()
+
 	_ai(now)
 	move_and_slide()
 	_update_visuals()
+
+func _update_attack_hitbox_facing():
+	if attack_hitbox:
+		var shape = attack_hitbox.get_node_or_null("AttackShape")
+		if shape:
+			shape.position.x = facing * attack_range / 2.0
+
+func _activate_attack_hitbox():
+	if attack_hitbox:
+		var shape = attack_hitbox.get_node_or_null("AttackShape")
+		if shape:
+			shape.disabled = false
+			# Deactivate after a short window
+			get_tree().create_timer(0.15).timeout.connect(func():
+				if is_instance_valid(shape):
+					shape.disabled = true
+			)
 
 func _ai(now: float):
 	var target = _find_target()
@@ -130,6 +150,7 @@ func _ai(now: float):
 		velocity = Vector2.ZERO
 		if now - last_attack_time > attack_cooldown:
 			last_attack_time = now
+			_activate_attack_hitbox()
 			if target.has_method("take_hit"):
 				var from_dir = 1 if global_position.x < target.global_position.x else -1
 				target.take_hit(int(damage * GameState.enemy_dmg_mult()), from_dir)
@@ -151,8 +172,8 @@ func take_hit(dmg: int, from_dir: int):
 	hp = max(0, hp - dmg)
 	stunned_until = Time.get_ticks_msec() / 1000.0 + 0.22
 	# Knockback scales with damage — heavy hits send them flying
-	var knockback_force = min(from_dir * (200 + dmg * 8), from_dir * 500)
-	velocity = Vector2(knockback_force, 0)
+	var knockback_magnitude = min(200 + dmg * 8, 500)
+	velocity = Vector2(from_dir * knockback_magnitude, 0)
 
 	# Flash white
 	for child in get_children():
@@ -166,6 +187,18 @@ func take_hit(dmg: int, from_dir: int):
 	# Knockback dust on heavy hits
 	if dmg >= 10:
 		CombatJuice.knockback_dust(get_parent(), global_position + Vector2(0, -2), from_dir)
+
+	# Hit stun visual — brief scale squash on impact
+	var orig_scale = scale
+	scale = Vector2(1.2, 0.8)  # Squash horizontally
+	get_tree().create_timer(0.04).timeout.connect(func():
+		if is_instance_valid(self):
+			scale = Vector2(0.9, 1.15)  # Stretch vertically
+			get_tree().create_timer(0.04).timeout.connect(func():
+				if is_instance_valid(self):
+					scale = orig_scale  # Back to normal
+			)
+	)
 
 	SFX.hit(get_tree())
 	if hp <= 0:
