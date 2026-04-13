@@ -206,32 +206,32 @@ func _create_player(pos: Vector2) -> CharacterBody2D:
 	col.shape = shape
 	p.add_child(col)
 
-	# Visual body (placeholder — colored rect)
-	var body = ColorRect.new()
-	body.color = Color(1.0, 0.6, 0.0)  # Bitcoin orange
-	body.size = Vector2(24, 40)
-	body.position = Vector2(-12, -44)
-	p.add_child(body)
+	# Sprite from sheet
+	var sheet_tex = load("res://assets/sprites/characters/node_runner_sheet.png")
+	if sheet_tex:
+		var sprite = Sprite2D.new()
+		sprite.texture = sheet_tex
+		sprite.hframes = 14
+		sprite.frame = 0  # idle
+		sprite.name = "Sprite"
+		# 128x128 frames, character is ~96px tall
+		# Position so feet align with collision shape at y=0
+		# Character bottom is at frame bottom, so offset up by half frame height
+		sprite.position = Vector2(0, -64)
+		p.add_child(sprite)
+	else:
+		# Fallback: colored rect if sheet not found
+		var body = ColorRect.new()
+		body.color = Color(1.0, 0.6, 0.0)
+		body.size = Vector2(24, 40)
+		body.position = Vector2(-12, -44)
+		p.add_child(body)
 
-	# Head
-	var head = ColorRect.new()
-	head.color = Color(1.0, 0.6, 0.0)
-	head.size = Vector2(18, 14)
-	head.position = Vector2(-9, -60)
-	p.add_child(head)
-
-	# Eyes (green glow)
-	var eye_l = ColorRect.new()
-	eye_l.color = Color(0.0, 1.0, 0.4)
-	eye_l.size = Vector2(4, 4)
-	eye_l.position = Vector2(-6, -56)
-	p.add_child(eye_l)
-
-	var eye_r = ColorRect.new()
-	eye_r.color = Color(0.0, 1.0, 0.4)
-	eye_r.size = Vector2(4, 4)
-	eye_r.position = Vector2(3, -56)
-	p.add_child(eye_r)
+		var head = ColorRect.new()
+		head.color = Color(1.0, 0.6, 0.0)
+		head.size = Vector2(18, 14)
+		head.position = Vector2(-9, -60)
+		p.add_child(head)
 
 	# Shadow
 	var shadow = ColorRect.new()
@@ -240,15 +240,6 @@ func _create_player(pos: Vector2) -> CharacterBody2D:
 	shadow.position = Vector2(-14, -2)
 	shadow.name = "Shadow"
 	p.add_child(shadow)
-
-	# Label
-	var lbl = Label.new()
-	lbl.text = "NODE"
-	lbl.position = Vector2(-20, -72)
-	lbl.add_theme_font_size_override("font_size", 10)
-	lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
-	lbl.name = "Label"
-	p.add_child(lbl)
 
 	return p
 

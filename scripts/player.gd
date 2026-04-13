@@ -704,23 +704,76 @@ func take_hit(damage: int, from_dir: int):
 	# Transition to HIT state (interrupts any current state)
 	_change_state(State.HIT)
 
-	# Flash visual children white
-	for child in get_children():
-		if child is ColorRect and child.name != "Shadow":
-			var orig = child.color
-			child.color = Color.WHITE
-			get_tree().create_timer(0.08).timeout.connect(func():
-				if is_instance_valid(child): child.color = orig
-			)
+	# Flash white on hit
+	var sprite = get_node_or_null("Sprite") as Sprite2D
+	if sprite:
+		sprite.modulate = Color.WHITE * 3.0  # Bright flash
+		get_tree().create_timer(0.08).timeout.connect(func():
+			if is_instance_valid(sprite): sprite.modulate = Color.WHITE
+		)
+	else:
+		for child in get_children():
+			if child is ColorRect and child.name != "Shadow":
+				var orig = child.color
+				child.color = Color.WHITE
+				get_tree().create_timer(0.08).timeout.connect(func():
+					if is_instance_valid(child): child.color = orig
+				)
 
 	hit_taken.emit(damage)
 
 func die():
 	died.emit()
 
+# ==== SPRITE ANIMATION ====
+
+# Frame indices in the sprite sheet (node_runner_sheet.png)
+# 0: idle, 1-4: walk, 5-8: attack1-4, 9: hit, 10: down, 11: jump, 12: grab, 13: throw
+var _anim_timer: float = 0.0
+var _walk_frame_idx: int = 0
+
+func _update_sprite_animation(delta: float):
+	var sprite = get_node_or_null("Sprite") as Sprite2D
+	if not sprite:
+		return
+
+	# Flip sprite based on facing direction
+	sprite.flip_h = (facing == -1)
+
+	match state:
+		State.IDLE:
+			sprite.frame = 0
+		State.WALK:
+			# Cycle through walk frames 1-4
+			_anim_timer += delta
+			if _anim_timer > 0.12:
+				_anim_timer = 0.0
+				_walk_frame_idx = (_walk_frame_idx + 1) % 4
+			sprite.frame = 1 + _walk_frame_idx
+		State.ATTACK:
+			# Show attack frame based on combo count
+			var attack_frame = clampi(combo_count, 1, 4)
+			sprite.frame = 4 + attack_frame  # frames 5-8
+		State.HIT:
+			sprite.frame = 9
+		State.DOWN:
+			sprite.frame = 10
+		State.JUMP:
+			sprite.frame = 11
+		State.GRAB:
+			if grabbed_enemy and is_instance_valid(grabbed_enemy):
+				sprite.frame = 12  # holding
+			else:
+				sprite.frame = 12  # reaching
+		_:
+			sprite.frame = 0
+
 # ==== VISUALS ====
 
 func _update_visuals():
+	# Update sprite animation
+	_update_sprite_animation(get_physics_process_delta_time())
+
 	# Jump Z offset on visual children
 	for child in get_children():
 		if child is CollisionShape2D or child is Camera2D or child is Area2D:
