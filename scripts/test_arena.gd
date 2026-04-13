@@ -151,8 +151,8 @@ func _ready():
 	player.died.connect(_on_player_died)
 	player.hit_taken.connect(_on_player_hit)
 
-	# Vignette — dark edges for atmosphere
-	_create_vignette(hud)
+	# Vignette — dark edges for atmosphere (deferred until HUD exists)
+	call_deferred("_create_vignette_deferred")
 
 	# Track stats
 	_level_start_time = Time.get_ticks_msec() / 1000.0
@@ -1497,6 +1497,12 @@ func _on_player_hit(_damage: int):
 			if is_instance_valid(panel):
 				panel.color = Color(0, 0, 0, 0.6)
 		)
+
+func _create_vignette_deferred():
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
+	_create_vignette(hud)
 
 func _create_vignette(hud: CanvasLayer):
 	# Subtle dark edges around the screen for atmosphere
