@@ -249,6 +249,9 @@ func _die():
 	died_at.emit(pos, sats)
 	queue_free()
 
+var _walk_anim_timer: float = 0.0
+var _walk_frame_idx: int = 0
+
 func _update_visuals():
 	# HP bar
 	var hp_bar = get_node_or_null("HPBar")
@@ -256,12 +259,38 @@ func _update_visuals():
 		var pct = float(hp) / float(max_hp)
 		hp_bar.size.x = 32.0 * pct
 
-	# Critical flash
-	if get_hp_pct() < 0.1 and get_hp_pct() > 0:
-		var flash = fmod(Time.get_ticks_msec(), 160) < 80
-		for child in get_children():
-			if child is ColorRect and child.name != "Shadow" and child.name != "HPBar" and child.name != "HPBarBG":
-				child.modulate = Color.WHITE if flash else Color(1, 1, 1)
+	# Sprite animation — maps enemy state to sheet frames
+	# Sheet layout: 0=idle, 1=walk1, 2=walk2, 3=attack, 4=hit, 5=death
+	var sprite = get_node_or_null("Sprite") as Sprite2D
+	if sprite:
+		sprite.flip_h = (facing == 1)  # Enemies face left by default in art
+		var now = Time.get_ticks_msec() / 1000.0
+		if hp <= 0:
+			sprite.frame = 5  # death
+		elif now < stunned_until or enemy_state == EnemyState.HIT:
+			sprite.frame = 4  # hit
+		elif enemy_state == EnemyState.ATTACK:
+			sprite.frame = 3  # attack
+		elif enemy_state == EnemyState.CHASE:
+			_walk_anim_timer += get_physics_process_delta_time()
+			if _walk_anim_timer > 0.15:
+				_walk_anim_timer = 0.0
+				_walk_frame_idx = 1 - _walk_frame_idx  # toggle 0/1
+			sprite.frame = 1 + _walk_frame_idx  # walk1 or walk2
+		else:
+			sprite.frame = 0  # idle
+
+		# Critical flash on sprite
+		if get_hp_pct() < 0.1 and get_hp_pct() > 0:
+			var flash = fmod(Time.get_ticks_msec(), 160) < 80
+			sprite.modulate = Color(2, 1, 1) if flash else Color.WHITE
+	else:
+		# Critical flash on ColorRect fallback
+		if get_hp_pct() < 0.1 and get_hp_pct() > 0:
+			var flash = fmod(Time.get_ticks_msec(), 160) < 80
+			for child in get_children():
+				if child is ColorRect and child.name != "Shadow" and child.name != "HPBar" and child.name != "HPBarBG":
+					child.modulate = Color.WHITE if flash else Color(1, 1, 1)
 
 	# Pop Z offset on visual children
 	for child in get_children():

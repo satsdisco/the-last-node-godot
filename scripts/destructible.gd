@@ -44,8 +44,24 @@ func _ready():
 	col.shape = shape
 	add_child(col)
 
-	# Procedural prop visuals — clean pixel art style, no broken AI images
-	_build_prop_visual()
+	# Load prop sprite from texture
+	_sprite = Sprite2D.new()
+	var tex = load(PROP_TEXTURES.get(prop_type, ""))
+	if tex:
+		_sprite.texture = tex
+		_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		# Position sprite so its bottom aligns with the collision (feet on ground)
+		_sprite.offset = Vector2(0, -tex.get_height() / 2.0)
+		_sprite.name = "Sprite"
+		add_child(_sprite)
+	else:
+		# Fallback colored rect
+		var fallback = ColorRect.new()
+		fallback.size = Vector2(32, 40)
+		fallback.color = Color(0.3, 0.3, 0.5)
+		fallback.position = Vector2(-16, -42)
+		fallback.name = "Sprite"
+		add_child(fallback)
 
 	z_index = int(global_position.y)
 

@@ -32,6 +32,10 @@ func _ready():
 	# Layer 2: Mid buildings — fills full height
 	_add_parallax_layer("res://assets/backgrounds/synth_middle.png", -80, 0.35, 0, true)
 
+	# Layer 2.5: Street-level fill — storefronts, alleyways, graffiti
+	# Fills the gap between mid buildings and foreground street
+	_add_parallax_layer("res://assets/backgrounds/street_fill.png", -70, 0.5, 360, false)
+
 	# Layer 3: Foreground buildings — bottom-aligned to screen bottom
 	# Scale by width so the street detail fills the walkable area
 	_add_parallax_layer("res://assets/backgrounds/synth_foreground_themed.png", -60, 0.6, 360, false)
@@ -296,33 +300,36 @@ func _spawn_enemy(pos: Vector2, type: String):
 	col.shape = shape
 	e.add_child(col)
 
-	# Visual body (blue for KYC, green for banker)
-	var color = Color(0.29, 0.44, 0.65) if type == "KYC" else Color(0.0, 0.67, 0.27)
+	# Sprite from sheet — banker or KYC agent
+	var sheet_path = ""
+	if type == "BANKER":
+		sheet_path = "res://assets/sprites/characters/banker_sheet.png"
+	elif type == "KYC":
+		sheet_path = "res://assets/sprites/characters/kyc_agent_sheet.png"
 
-	var body = ColorRect.new()
-	body.color = color
-	body.size = Vector2(22, 36)
-	body.position = Vector2(-11, -40)
-	e.add_child(body)
-
-	var head_rect = ColorRect.new()
-	head_rect.color = color
-	head_rect.size = Vector2(16, 12)
-	head_rect.position = Vector2(-8, -54)
-	e.add_child(head_rect)
-
-	# Red eyes
-	var eye = ColorRect.new()
-	eye.color = Color(1, 0.2, 0.2)
-	eye.size = Vector2(4, 3)
-	eye.position = Vector2(-4, -50)
-	e.add_child(eye)
-
-	var eye2 = ColorRect.new()
-	eye2.color = Color(1, 0.2, 0.2)
-	eye2.size = Vector2(4, 3)
-	eye2.position = Vector2(2, -50)
-	e.add_child(eye2)
+	var sheet_tex = load(sheet_path) if sheet_path != "" else null
+	if sheet_tex:
+		var sprite = Sprite2D.new()
+		sprite.texture = sheet_tex
+		sprite.hframes = 6  # idle, walk1, walk2, attack, hit, death
+		sprite.frame = 0
+		sprite.name = "Sprite"
+		sprite.position = Vector2(0, -64)
+		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		e.add_child(sprite)
+	else:
+		# Fallback colored rect for unknown enemy types
+		var color = Color(0.29, 0.44, 0.65)
+		var body = ColorRect.new()
+		body.color = color
+		body.size = Vector2(22, 36)
+		body.position = Vector2(-11, -40)
+		e.add_child(body)
+		var head_rect = ColorRect.new()
+		head_rect.color = color
+		head_rect.size = Vector2(16, 12)
+		head_rect.position = Vector2(-8, -54)
+		e.add_child(head_rect)
 
 	# Shadow
 	var shadow = ColorRect.new()
