@@ -311,8 +311,8 @@ func _spawn_enemy(pos: Vector2, type: String):
 	if sheet_tex:
 		var sprite = Sprite2D.new()
 		sprite.texture = sheet_tex
-		# KYC has 13 frames, Banker has 6
-		sprite.hframes = 13 if type == "KYC" else 6
+		# Both KYC and Banker have 13-frame sheets
+		sprite.hframes = 13
 		sprite.frame = 0
 		sprite.name = "Sprite"
 		sprite.position = Vector2(0, -64)
