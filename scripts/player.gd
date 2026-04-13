@@ -78,7 +78,7 @@ func _create_hitbox():
 	var shape = RectangleShape2D.new()
 	shape.size = Vector2(attack_range, 20)
 	col.shape = shape
-	col.position = Vector2(attack_range / 2.0, -20)
+	col.position = Vector2(attack_range / 2.0, -50)
 	col.name = "HitboxShape"
 	hitbox_area.add_child(col)
 
@@ -185,6 +185,9 @@ func _physics_process(delta: float):
 	# Visual updates
 	_update_visuals()
 	move_and_slide()
+
+	# Hard clamp to walkable area (safety net)
+	global_position.y = clampf(global_position.y, 275, 345)
 
 # ==== STATE HANDLERS ====
 
@@ -384,7 +387,7 @@ func try_attack():
 		dmg = int(dmg * 1.5)
 
 	# Slash visual
-	CombatJuice.slash_arc(get_parent(), global_position + Vector2(0, -22), facing, range_px, slash_color)
+	CombatJuice.slash_arc(get_parent(), global_position + Vector2(facing * 16, -50), facing, range_px, slash_color)
 
 	# Hit all enemies in range (CLEAVE)
 	var hit_any = false
@@ -410,8 +413,8 @@ func try_attack():
 
 		enemy.take_hit(dmg, facing)
 		hit_any = true
-		CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), slash_color)
-		CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -30), dmg)
+		CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -50), slash_color)
+		CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -60), dmg)
 
 		# Launcher pops enemy up
 		if dir_mode == "launcher" and enemy.has_method("pop_up"):
@@ -497,8 +500,8 @@ func strike_grabbed():
 		return
 	var dmg = int(base_damage * 1.5)
 	grabbed_enemy.take_hit(dmg, facing)
-	CombatJuice.hit_sparks(get_parent(), grabbed_enemy.global_position + Vector2(0, -20))
-	CombatJuice.damage_number(get_parent(), grabbed_enemy.global_position + Vector2(0, -30), dmg)
+	CombatJuice.hit_sparks(get_parent(), grabbed_enemy.global_position + Vector2(0, -50))
+	CombatJuice.damage_number(get_parent(), grabbed_enemy.global_position + Vector2(0, -60), dmg)
 	CombatJuice.hitstop(get_tree(), 0.05)
 
 	# Cleave: hit nearby enemies too
@@ -566,7 +569,7 @@ func do_special_1():
 				enemy.take_hit(10, facing)
 			if enemy.has_method("stun"):
 				enemy.stun(800)
-			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(0, 1, 0.4))
+			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -50), Color(0, 1, 0.4))
 			_spawn_invalid_mark(enemy.global_position + Vector2(0, -40))
 
 func do_special_2():
@@ -584,8 +587,8 @@ func do_special_2():
 		if global_position.distance_to(enemy.global_position) < 96:
 			if enemy.has_method("take_hit"):
 				enemy.take_hit(22, facing)
-			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(1, 0.6, 0), 8)
-			CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -30), 22, Color(1, 0.6, 0))
+			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -50), Color(1, 0.6, 0), 8)
+			CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -60), 22, Color(1, 0.6, 0))
 
 func do_super():
 	# Consensus — screen flash + sequential orbital hits
@@ -630,8 +633,8 @@ func do_super():
 
 			if enemy.has_method("take_hit"):
 				enemy.take_hit(40, facing)
-			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -20), Color(1, 0.6, 0), 10)
-			CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -30), 40, Color(1, 0.6, 0))
+			CombatJuice.hit_sparks(get_parent(), enemy.global_position + Vector2(0, -50), Color(1, 0.6, 0), 10)
+			CombatJuice.damage_number(get_parent(), enemy.global_position + Vector2(0, -60), 40, Color(1, 0.6, 0))
 			CombatJuice.shake(get_viewport().get_camera_2d(), 4.0, 0.08)
 		)
 		i += 1
