@@ -27,6 +27,8 @@ var thrown_until: float = 0.0
 var thrown_dmg: int = 0
 var _spawn_time: float = 0.0
 var _chase_y_offset: float = 0.0  # Slight Y variation so enemies don't stack
+var _is_telegraphing: bool = false
+var _telegraph_until: float = 0.0
 
 # Area2D for hit detection
 var hurtbox_area: Area2D = null
@@ -167,12 +169,48 @@ func _ai(now: float):
 	else:
 		velocity = Vector2.ZERO
 		if now - last_attack_time > attack_cooldown:
-			last_attack_time = now
-			enemy_state = EnemyState.ATTACK
-			_activate_attack_hitbox()
-			if target.has_method("take_hit"):
-				var from_dir = 1 if global_position.x < target.global_position.x else -1
-				target.take_hit(int(damage * GameState.enemy_dmg_mult()), from_dir)
+			if not _is_telegraphing:
+				# Start telegraph — flash red/orange for 0.3s before attacking
+				_start_attack_telegraph(target)
+			elif now >= _telegraph_until:
+				# Telegraph done, now attack
+				_is_telegraphing = false
+				last_attack_time = now
+				enemy_state = EnemyState.ATTACK
+				_activate_attack_hitbox()
+				if target.has_method("take_hit"):
+					var from_dir = 1 if global_position.x < target.global_position.x else -1
+					target.take_hit(int(damage * GameState.enemy_dmg_mult()), from_dir)
+
+func _start_attack_telegraph(target: Node2D):
+	_is_telegraphing = true
+	_telegraph_until = Time.get_ticks_msec() / 1000.0 + 0.3
+	# Flash red/orange warning — 3 rapid flashes over 0.3s
+	var sprite = get_node_or_null("Sprite") as Sprite2D
+	for i in range(3):
+		get_tree().create_timer(i * 0.1).timeout.connect(func():
+			if not is_instance_valid(self):
+				return
+			if sprite and is_instance_valid(sprite):
+				sprite.modulate = Color(2.5, 0.5, 0.3) if i % 2 == 0 else Color(1.5, 0.8, 0.3)
+			else:
+				for child in get_children():
+					if child is ColorRect and child.name != "Shadow" and child.name != "HPBar" and child.name != "HPBarBG":
+						if is_instance_valid(child):
+							child.modulate = Color(2.5, 0.5, 0.3) if i % 2 == 0 else Color.WHITE
+		)
+	# Reset color after telegraph
+	get_tree().create_timer(0.3).timeout.connect(func():
+		if not is_instance_valid(self):
+			return
+		if sprite and is_instance_valid(sprite):
+			sprite.modulate = Color.WHITE
+		else:
+			for child in get_children():
+				if child is ColorRect and child.name != "Shadow" and child.name != "HPBar" and child.name != "HPBarBG":
+					if is_instance_valid(child):
+						child.modulate = Color.WHITE
+	)
 
 func _find_target() -> Node2D:
 	var players = get_tree().get_nodes_in_group("players")

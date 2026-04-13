@@ -839,12 +839,21 @@ func _update_visuals():
 			child.set_meta("base_y", child.position.y)
 		child.position.y = child.get_meta("base_y") - jump_z
 
+	# Invulnerability frame flashing — blink rapidly so player knows they're safe
+	var now_vis = Time.get_ticks_msec() / 1000.0
+	if now_vis < invuln_until and state != State.DOWN:
+		# Rapid blink: alternate visible/invisible every 60ms
+		var blink_on = fmod(Time.get_ticks_msec(), 120) < 60
+		modulate.a = 1.0 if blink_on else 0.3
+	else:
+		modulate.a = 1.0
+
 	# Buff color tint
 	if damage_buff_mult > 1.0:
-		modulate = Color(0.5, 1, 0.5)
+		modulate = Color(0.5, 1, 0.5, modulate.a)
 	elif speed_buff_mult > 1.0:
-		modulate = Color(1, 1, 0.5)
+		modulate = Color(1, 1, 0.5, modulate.a)
 	else:
-		modulate = Color.WHITE
+		modulate = Color(1, 1, 1, modulate.a)
 
 	z_index = int(global_position.y)
