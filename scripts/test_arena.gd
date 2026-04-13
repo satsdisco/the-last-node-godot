@@ -437,6 +437,27 @@ func _create_hud():
 	block_lbl.size = Vector2(140, 20)
 	hud.add_child(block_lbl)
 
+	# === CENTER: Combo counter (hidden when 0) ===
+	var combo_lbl = Label.new()
+	combo_lbl.name = "ComboLabel"
+	combo_lbl.text = ""
+	combo_lbl.position = Vector2(270, 140)
+	combo_lbl.add_theme_font_size_override("font_size", 20)
+	combo_lbl.add_theme_color_override("font_color", orange)
+	combo_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	combo_lbl.size = Vector2(100, 30)
+	combo_lbl.modulate.a = 0.0
+	hud.add_child(combo_lbl)
+
+	# State debug label (shows current player state)
+	var state_lbl = Label.new()
+	state_lbl.name = "StateLabel"
+	state_lbl.text = ""
+	state_lbl.position = Vector2(8, 42)
+	state_lbl.add_theme_font_size_override("font_size", 8)
+	state_lbl.add_theme_color_override("font_color", dim_green)
+	hud.add_child(state_lbl)
+
 	# === BOTTOM: Status line with blinking cursor ===
 	var status = Label.new()
 	status.name = "StatusLabel"
@@ -534,6 +555,27 @@ func _process(delta):
 	var block_lbl = hud.get_node_or_null("BlockLabel")
 	if block_lbl:
 		block_lbl.text = "BLOCK %s" % _format_number(_block_height)
+
+	# Combo counter display
+	var combo_lbl = hud.get_node_or_null("ComboLabel")
+	if combo_lbl and player:
+		if player.combo_count >= 2:
+			combo_lbl.text = "%d HIT" % player.combo_count
+			combo_lbl.modulate.a = 1.0
+			# Scale pulse on new hit
+			if combo_lbl.scale != Vector2.ONE:
+				combo_lbl.scale = Vector2.ONE
+		else:
+			# Fade out when combo drops
+			combo_lbl.modulate.a = max(0.0, combo_lbl.modulate.a - delta * 3.0)
+
+	# State debug label
+	var state_lbl = hud.get_node_or_null("StateLabel")
+	if state_lbl and player:
+		var state_names = ["IDLE", "WALK", "ATTACK", "HIT", "JUMP", "GRAB", "DOWN"]
+		var state_idx = player.state as int
+		if state_idx >= 0 and state_idx < state_names.size():
+			state_lbl.text = "STATE: %s" % state_names[state_idx]
 
 	# Blinking cursor on status line
 	_blink_timer += delta

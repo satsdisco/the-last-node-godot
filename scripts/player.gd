@@ -421,6 +421,11 @@ func try_attack():
 		var intensity = 6.0 if combo_count >= combo_length else 3.0
 		CombatJuice.hitstop(get_tree(), 0.04 if combo_count < combo_length else 0.08)
 		CombatJuice.shake(get_viewport().get_camera_2d(), intensity, 0.12)
+		# Knockback dust at hit position
+		CombatJuice.knockback_dust(get_parent(), global_position + Vector2(facing * 20, 0), facing)
+		# Combo popup at milestone hits
+		if combo_count >= 3 and combo_count % 2 == 1:
+			CombatJuice.combo_popup(get_parent(), global_position + Vector2(0, -40), combo_count)
 
 	if combo_count >= combo_length:
 		combo_count = 0

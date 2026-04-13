@@ -133,6 +133,46 @@ static func sat_popup(parent: Node, pos: Vector2, amount: int):
 	tween.parallel().tween_property(lbl, "modulate:a", 0.0, 0.8)
 	tween.tween_callback(lbl.queue_free)
 
+## Combo counter popup — big centered text that scales in
+static func combo_popup(parent: Node, pos: Vector2, count: int):
+	if count < 2:
+		return
+	var lbl = Label.new()
+	lbl.text = "%d HIT COMBO!" % count
+	lbl.global_position = pos - Vector2(50, 40)
+	lbl.add_theme_font_size_override("font_size", 18 if count < 5 else 22)
+	var color = Color(1, 0.6, 0) if count < 5 else Color(1, 0.2, 0.2)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.size = Vector2(100, 30)
+	lbl.z_index = 400
+	lbl.scale = Vector2(1.5, 1.5)
+	lbl.pivot_offset = Vector2(50, 15)
+	parent.add_child(lbl)
+
+	var tween = lbl.create_tween()
+	tween.tween_property(lbl, "scale", Vector2.ONE, 0.15)
+	tween.parallel().tween_property(lbl, "global_position:y", pos.y - 60, 0.8)
+	tween.parallel().tween_property(lbl, "modulate:a", 0.0, 0.8)
+	tween.tween_callback(lbl.queue_free)
+
+## Knockback dust — small dust puffs when enemy is knocked back
+static func knockback_dust(parent: Node, pos: Vector2, direction: int):
+	for i in range(3):
+		var dust = ColorRect.new()
+		dust.color = Color(0.5, 0.45, 0.4, 0.5)
+		dust.size = Vector2(4, 3)
+		dust.global_position = pos + Vector2(-direction * i * 4, randf_range(-2, 2))
+		dust.z_index = int(pos.y) - 1
+		parent.add_child(dust)
+
+		var tween = dust.create_tween()
+		tween.tween_property(dust, "global_position:x",
+			dust.global_position.x - direction * randf_range(8, 16), 0.25)
+		tween.parallel().tween_property(dust, "modulate:a", 0.0, 0.25)
+		tween.parallel().tween_property(dust, "scale", Vector2(2, 2), 0.25)
+		tween.tween_callback(dust.queue_free)
+
 ## Enemy death burst
 static func death_burst(parent: Node, pos: Vector2, color: Color = Color(0.3, 0.4, 0.7)):
 	for i in range(8):

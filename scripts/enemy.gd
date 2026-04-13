@@ -150,7 +150,9 @@ func _find_target() -> Node2D:
 func take_hit(dmg: int, from_dir: int):
 	hp = max(0, hp - dmg)
 	stunned_until = Time.get_ticks_msec() / 1000.0 + 0.22
-	velocity = Vector2(from_dir * 360, 0)
+	# Knockback scales with damage — heavy hits send them flying
+	var knockback_force = min(from_dir * (200 + dmg * 8), from_dir * 500)
+	velocity = Vector2(knockback_force, 0)
 
 	# Flash white
 	for child in get_children():
@@ -160,6 +162,10 @@ func take_hit(dmg: int, from_dir: int):
 			get_tree().create_timer(0.07).timeout.connect(func():
 				if is_instance_valid(child): child.color = orig
 			)
+
+	# Knockback dust on heavy hits
+	if dmg >= 10:
+		CombatJuice.knockback_dust(get_parent(), global_position + Vector2(0, -2), from_dir)
 
 	SFX.hit(get_tree())
 	if hp <= 0:
