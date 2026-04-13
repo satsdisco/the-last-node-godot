@@ -203,13 +203,14 @@ static func spawn_power_up(parent: Node, pos: Vector2, type: PickupType) -> Pick
 	return p
 
 static func spawn_random_drop(parent: Node, pos: Vector2):
-	# 60% sats, 25% orange pill, 10% power-up, 5% weapon
+	# 40% sats, 35% orange pill (health), 15% power-up, 10% weapon
+	# Generous health drops to keep the game fun, not frustrating
 	var roll = randf()
-	if roll < 0.60:
-		spawn_sats(parent, pos, [100, 100, 100, 250, 250, 500].pick_random())
-	elif roll < 0.85:
+	if roll < 0.40:
+		spawn_sats(parent, pos, [100, 100, 250, 250, 500].pick_random())
+	elif roll < 0.75:
 		spawn_power_up(parent, pos, PickupType.ORANGE_PILL)
-	elif roll < 0.95:
+	elif roll < 0.90:
 		var types = [PickupType.FULL_NODE, PickupType.COLD_STORAGE, PickupType.LIGHTNING]
 		spawn_power_up(parent, pos, types.pick_random())
 	else:

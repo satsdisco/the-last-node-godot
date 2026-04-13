@@ -82,26 +82,50 @@ func _ready():
 	player.add_child(camera)
 	camera.make_current()
 
-	# Destructible props along the level
-	# Props scattered through the level — mix of fiat oppression and resistance
-	# Placed at back edge of walkway (FLOOR_TOP=275) so they line the street
-	# Billboards behind the walk area since they're tall background props
-	Destructible.spawn(self, Vector2(250, FLOOR_TOP + 2), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(500, FLOOR_TOP + 8), Destructible.PropType.CRATE)
-	Destructible.spawn(self, Vector2(750, FLOOR_TOP), Destructible.PropType.CHECKPOINT)
-	Destructible.spawn(self, Vector2(1050, FLOOR_TOP + 2), Destructible.PropType.ATM)
-	Destructible.spawn(self, Vector2(1350, FLOOR_TOP + 8), Destructible.PropType.CRATE)
-	Destructible.spawn(self, Vector2(1650, FLOOR_TOP - 10), Destructible.PropType.BILLBOARD)
-	Destructible.spawn(self, Vector2(1900, FLOOR_TOP + 2), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(2200, FLOOR_TOP + 2), Destructible.PropType.ATM)
-	Destructible.spawn(self, Vector2(2500, FLOOR_TOP), Destructible.PropType.CHECKPOINT)
-	Destructible.spawn(self, Vector2(2750, FLOOR_TOP + 8), Destructible.PropType.CRATE)
+	# === DESTRUCTIBLE PROPS ===
+	# Placed at the edges of the street (FLOOR_TOP = back, FLOOR_BOTTOM = front)
+	# BETWEEN encounter zones so they don't clutter fights
+	# Encounter zones: 1=x400, 2=x1200, 3=x2000, boss=x2800
 
-	# Pre-placed power-ups at key locations
-	Pickup.spawn_power_up(self, Vector2(200, 300), Pickup.PickupType.ORANGE_PILL)
-	Pickup.spawn_power_up(self, Vector2(1350, 300), Pickup.PickupType.ORANGE_PILL)
-	# Boss prep — heal + damage buff + weapon before the captain
-	Pickup.spawn_power_up(self, Vector2(2700, 300), Pickup.PickupType.ORANGE_PILL)
+	# Before encounter 1 — intro area
+	Destructible.spawn(self, Vector2(180, FLOOR_TOP + 4), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(280, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
+
+	# Between encounters 1 and 2 — breathing room
+	Destructible.spawn(self, Vector2(700, FLOOR_TOP + 4), Destructible.PropType.ATM)
+	Destructible.spawn(self, Vector2(850, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(1000, FLOOR_TOP + 4), Destructible.PropType.CHECKPOINT)
+
+	# Between encounters 2 and 3
+	Destructible.spawn(self, Vector2(1500, FLOOR_BOTTOM - 8), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(1700, FLOOR_TOP + 4), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(1850, FLOOR_TOP + 4), Destructible.PropType.ATM)
+
+	# Between encounter 3 and boss — last chance to stock up
+	Destructible.spawn(self, Vector2(2350, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(2500, FLOOR_TOP + 4), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(2650, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
+
+	# === PRE-PLACED HEALTH & POWER-UPS ===
+	# Generous health drops between encounters so the game is beatable
+	var mid_y = (FLOOR_TOP + FLOOR_BOTTOM) / 2.0
+
+	# Start of level — free heal
+	Pickup.spawn_power_up(self, Vector2(150, mid_y), Pickup.PickupType.ORANGE_PILL)
+
+	# After encounter 1
+	Pickup.spawn_power_up(self, Vector2(650, mid_y - 10), Pickup.PickupType.ORANGE_PILL)
+	Pickup.spawn_power_up(self, Vector2(750, mid_y + 10), Pickup.PickupType.ORANGE_PILL)
+
+	# After encounter 2
+	Pickup.spawn_power_up(self, Vector2(1450, mid_y), Pickup.PickupType.ORANGE_PILL)
+	Pickup.spawn_power_up(self, Vector2(1600, mid_y - 10), Pickup.PickupType.FULL_NODE)
+
+	# After encounter 3 — boss prep
+	Pickup.spawn_power_up(self, Vector2(2400, mid_y - 10), Pickup.PickupType.ORANGE_PILL)
+	Pickup.spawn_power_up(self, Vector2(2500, mid_y), Pickup.PickupType.ORANGE_PILL)
+	Pickup.spawn_power_up(self, Vector2(2600, mid_y + 10), Pickup.PickupType.COLD_STORAGE)
+	Pickup.spawn_power_up(self, Vector2(2650, mid_y), Pickup.PickupType.FULL_NODE)
 	Pickup.spawn_power_up(self, Vector2(2720, 300), Pickup.PickupType.FULL_NODE)
 	Pickup.spawn_power_up(self, Vector2(2740, 300), Pickup.PickupType.COLD_STORAGE)
 
