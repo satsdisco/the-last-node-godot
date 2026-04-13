@@ -44,24 +44,8 @@ func _ready():
 	col.shape = shape
 	add_child(col)
 
-	# Sprite
-	_sprite = Sprite2D.new()
-	var tex = load(PROP_TEXTURES.get(prop_type, ""))
-	if tex:
-		_sprite.texture = tex
-		_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		# Position sprite so its bottom aligns with the collision (feet on ground)
-		_sprite.offset = Vector2(0, -tex.get_height() / 2.0)
-		_sprite.name = "Sprite"
-		add_child(_sprite)
-	else:
-		# Fallback to colored rect if texture missing
-		var fallback = ColorRect.new()
-		fallback.size = Vector2(32, 40)
-		fallback.color = Color(0.3, 0.3, 0.5)
-		fallback.position = Vector2(-16, -42)
-		fallback.name = "Sprite"
-		add_child(fallback)
+	# Procedural prop visuals — clean pixel art style, no broken AI images
+	_build_prop_visual()
 
 	z_index = int(global_position.y)
 
@@ -151,3 +135,148 @@ static func spawn(parent: Node, pos: Vector2, type: PropType) -> Destructible:
 			d.drops_power_up = false
 	parent.add_child(d)
 	return d
+
+func _build_prop_visual():
+	# Container for all visual parts — sits above collision at feet
+	var container = Node2D.new()
+	container.name = "Sprite"
+	add_child(container)
+
+	match prop_type:
+		PropType.VENDING:
+			# Dark blue vending machine with glowing slot
+			var body = ColorRect.new()
+			body.size = Vector2(28, 48)
+			body.position = Vector2(-14, -50)
+			body.color = Color(0.1, 0.15, 0.3)
+			container.add_child(body)
+			# Glass front
+			var glass = ColorRect.new()
+			glass.size = Vector2(22, 28)
+			glass.position = Vector2(-11, -46)
+			glass.color = Color(0.15, 0.2, 0.35)
+			container.add_child(glass)
+			# Glowing slot
+			var slot = ColorRect.new()
+			slot.size = Vector2(12, 3)
+			slot.position = Vector2(-6, -14)
+			slot.color = Color(0.0, 0.8, 0.4)
+			container.add_child(slot)
+			# "FIAT TEARS" label
+			var lbl = Label.new()
+			lbl.text = "FIAT\nTEARS"
+			lbl.position = Vector2(-10, -44)
+			lbl.add_theme_font_size_override("font_size", 6)
+			lbl.add_theme_color_override("font_color", Color(0.4, 0.6, 0.9))
+			container.add_child(lbl)
+
+		PropType.CHECKPOINT:
+			# KYC checkpoint gate — two posts with a red barrier
+			var post_l = ColorRect.new()
+			post_l.size = Vector2(6, 44)
+			post_l.position = Vector2(-24, -46)
+			post_l.color = Color(0.35, 0.35, 0.4)
+			container.add_child(post_l)
+			var post_r = ColorRect.new()
+			post_r.size = Vector2(6, 44)
+			post_r.position = Vector2(18, -46)
+			post_r.color = Color(0.35, 0.35, 0.4)
+			container.add_child(post_r)
+			# Red barrier bar
+			var bar = ColorRect.new()
+			bar.size = Vector2(36, 4)
+			bar.position = Vector2(-18, -30)
+			bar.color = Color(0.9, 0.15, 0.1)
+			container.add_child(bar)
+			# Scanner light (blinking red)
+			var scanner = ColorRect.new()
+			scanner.size = Vector2(4, 4)
+			scanner.position = Vector2(-2, -44)
+			scanner.color = Color(1.0, 0.2, 0.1)
+			container.add_child(scanner)
+			# KYC sign
+			var lbl = Label.new()
+			lbl.text = "KYC"
+			lbl.position = Vector2(-10, -46)
+			lbl.add_theme_font_size_override("font_size", 7)
+			lbl.add_theme_color_override("font_color", Color(1.0, 0.3, 0.2))
+			container.add_child(lbl)
+
+		PropType.ATM:
+			# Bitcoin ATM — dark body with orange B logo
+			var body = ColorRect.new()
+			body.size = Vector2(32, 52)
+			body.position = Vector2(-16, -54)
+			body.color = Color(0.12, 0.14, 0.2)
+			container.add_child(body)
+			# Screen
+			var screen = ColorRect.new()
+			screen.size = Vector2(24, 16)
+			screen.position = Vector2(-12, -48)
+			screen.color = Color(0.05, 0.1, 0.15)
+			container.add_child(screen)
+			# Bitcoin logo on screen
+			var btc = Label.new()
+			btc.text = "₿"
+			btc.position = Vector2(-6, -50)
+			btc.add_theme_font_size_override("font_size", 12)
+			btc.add_theme_color_override("font_color", Color(1.0, 0.6, 0.0))
+			container.add_child(btc)
+			# Card slot
+			var card_slot = ColorRect.new()
+			card_slot.size = Vector2(14, 2)
+			card_slot.position = Vector2(-7, -26)
+			card_slot.color = Color(0.05, 0.05, 0.05)
+			container.add_child(card_slot)
+			# "NO KYC" graffiti
+			var graffiti = Label.new()
+			graffiti.text = "NO KYC"
+			graffiti.position = Vector2(-14, -16)
+			graffiti.add_theme_font_size_override("font_size", 5)
+			graffiti.add_theme_color_override("font_color", Color(1.0, 0.5, 0.0, 0.6))
+			container.add_child(graffiti)
+
+		PropType.CRATE:
+			# Bitcoin crate — wooden with B stamp
+			var body = ColorRect.new()
+			body.size = Vector2(26, 26)
+			body.position = Vector2(-13, -28)
+			body.color = Color(0.4, 0.28, 0.15)
+			container.add_child(body)
+			# Darker planks
+			var plank1 = ColorRect.new()
+			plank1.size = Vector2(26, 2)
+			plank1.position = Vector2(-13, -20)
+			plank1.color = Color(0.3, 0.2, 0.1)
+			container.add_child(plank1)
+			var plank2 = ColorRect.new()
+			plank2.size = Vector2(26, 2)
+			plank2.position = Vector2(-13, -12)
+			plank2.color = Color(0.3, 0.2, 0.1)
+			container.add_child(plank2)
+			# B stamp
+			var stamp = Label.new()
+			stamp.text = "₿"
+			stamp.position = Vector2(-6, -26)
+			stamp.add_theme_font_size_override("font_size", 10)
+			stamp.add_theme_color_override("font_color", Color(1.0, 0.6, 0.0, 0.5))
+			container.add_child(stamp)
+
+		PropType.BILLBOARD:
+			# Propaganda billboard
+			var pole = ColorRect.new()
+			pole.size = Vector2(3, 50)
+			pole.position = Vector2(-1, -52)
+			pole.color = Color(0.3, 0.3, 0.35)
+			container.add_child(pole)
+			var sign_bg = ColorRect.new()
+			sign_bg.size = Vector2(40, 20)
+			sign_bg.position = Vector2(-20, -54)
+			sign_bg.color = Color(0.5, 0.12, 0.1)
+			container.add_child(sign_bg)
+			var lbl = Label.new()
+			lbl.text = "YOUR MONEY\nOUR RULES"
+			lbl.position = Vector2(-18, -54)
+			lbl.add_theme_font_size_override("font_size", 5)
+			lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.8))
+			container.add_child(lbl)

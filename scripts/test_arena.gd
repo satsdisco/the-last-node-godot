@@ -14,20 +14,29 @@ var camera: Camera2D
 
 func _ready():
 	# === BACKGROUNDS — Synth Cities parallax layers ===
-	# Scale by height (360px viewport) so all layers fill vertically.
-	# Foreground pushed down so buildings rise ABOVE the street, not covering it.
+	# Three layers: far skyline fills full height, mid fills full height,
+	# foreground scales to width and bottom-aligns to street level.
+	# Dark fill behind everything to cover any gaps.
 
-	# Layer 1: Far skyline (slowest scroll) — fills full height, top-aligned
+	# Dark sky fill — covers entire background so no blue gaps
+	var sky_fill = ColorRect.new()
+	sky_fill.color = Color(0.02, 0.03, 0.06)  # Near-black dark blue
+	sky_fill.position = Vector2(-200, 0)
+	sky_fill.size = Vector2(LEVEL_WIDTH + 400, 360)
+	sky_fill.z_index = -110
+	add_child(sky_fill)
+
+	# Layer 1: Far skyline (slowest scroll) — fills full height
 	_add_parallax_layer("res://assets/backgrounds/synth_back.png", -100, 0.15, 0, true)
 
-	# Layer 2: Mid buildings — fills full height, top-aligned
+	# Layer 2: Mid buildings — fills full height
 	_add_parallax_layer("res://assets/backgrounds/synth_middle.png", -80, 0.35, 0, true)
 
-	# Layer 3: Foreground buildings — bottom-aligned so street is at walk level
-	_add_parallax_layer("res://assets/backgrounds/synth_foreground_themed.png", -60, 0.6, 380, false)
+	# Layer 3: Foreground buildings — bottom-aligned to screen bottom
+	# Scale by width so the street detail fills the walkable area
+	_add_parallax_layer("res://assets/backgrounds/synth_foreground_themed.png", -60, 0.6, 360, false)
 
-	# No separate floor rect — the foreground image IS the ground.
-	# Just a subtle darkening strip at the very bottom for depth
+	# Subtle darkening at the very bottom for street depth
 	var floor_fade = ColorRect.new()
 	floor_fade.color = Color(0, 0, 0, 0.3)
 	floor_fade.position = Vector2(0, FLOOR_BOTTOM)
