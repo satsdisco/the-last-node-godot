@@ -106,3 +106,9 @@ static func menu_move(tree: SceneTree):
 
 static func menu_select(tree: SceneTree):
 	_play_tone(tree, 660, 0.1, 0.2, "square", 990)
+
+static func gate_open(tree: SceneTree):
+	_play_tone(tree, 330, 0.2, 0.2, "triangle", 660)
+
+static func level_complete(tree: SceneTree):
+	_play_tone(tree, 440, 0.4, 0.25, "triangle", 880)

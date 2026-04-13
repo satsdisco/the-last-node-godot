@@ -119,11 +119,17 @@ func _ready():
 	pause_menu.set_script(load("res://scripts/pause_menu.gd"))
 	add_child(pause_menu)
 
-	# Level splash card
+	# Level splash card — disables player input until it fades
+	_splash_active = true
 	_show_level_splash("LEVEL 1", "THE GRID", "BLOCK 840,003")
 
 	# Connect player death
 	player.died.connect(_on_player_died)
+
+	# Track stats
+	_level_start_time = Time.get_ticks_msec() / 1000.0
+	_sats_at_start = GameState.sats
+	_enemies_defeated = 0
 
 	print("[TestArena] Ready — WASD to move, Z to attack!")
 
@@ -497,18 +503,35 @@ var _last_cam_x: float = 0
 var encounters: Array = []
 var current_encounter: int = -1
 var encounter_active: bool = false
+var encounter_wave: int = 0  # Current wave within encounter
 var gate_left: float = 0
 var gate_right: float = 0
-var gate_visual: ColorRect = null
+var gate_left_body: StaticBody2D = null
+var gate_right_body: StaticBody2D = null
+var gate_left_visual: ColorRect = null
+var gate_right_visual: ColorRect = null
+var go_prompt: Label = null
+var _cam_limit_left_saved: int = 0
+var _cam_limit_right_saved: int = 0
+
+# Stats tracking
+var _level_start_time: float = 0.0
+var _enemies_defeated: int = 0
+var _sats_at_start: int = 0
 
 var _block_tick_timer: float = 0.0
 var _block_height: int = 840000
 var _blink_timer: float = 0.0
 var _level_complete_flag: bool = false
+var _splash_active: bool = true
 
 func _process(delta):
 	if not player or not is_instance_valid(player):
 		return
+
+	# Block player input during splash or level complete
+	if _splash_active or _level_complete_flag:
+		player.velocity = Vector2.ZERO
 
 	# Encounter system
 	_check_encounters()
@@ -615,99 +638,214 @@ func _format_number(n: int) -> String:
 # ==== ENCOUNTER SYSTEM ====
 
 func _setup_encounters():
+	# Each encounter has waves — next wave spawns when previous is cleared
 	encounters = [
-		# Encounter 1: first KYC swarm
+		# Encounter 1 (x=400): KYC swarm — intro fight
 		{ "trigger_x": 400, "left": 320, "right": 700,
-		  "enemies": [
-			{"type": "KYC", "x": 650, "y": 270},
-			{"type": "KYC", "x": 650, "y": 310},
-			{"type": "KYC", "x": 350, "y": 280},
+		  "waves": [
+			[
+				{"type": "KYC", "x": 650, "y": 290},
+				{"type": "KYC", "x": 670, "y": 310},
+				{"type": "KYC", "x": 350, "y": 280},
+			],
+			[
+				{"type": "KYC", "x": 660, "y": 280},
+				{"type": "KYC", "x": 340, "y": 300},
+			],
 		  ]},
-		# Encounter 2: Bankers + KYC
-		{ "trigger_x": 900, "left": 820, "right": 1200,
-		  "enemies": [
-			{"type": "BANKER", "x": 1150, "y": 280},
-			{"type": "KYC", "x": 860, "y": 300},
-			{"type": "KYC", "x": 1150, "y": 260},
+		# Encounter 2 (x=1200): Bankers behind KYC agents
+		{ "trigger_x": 1200, "left": 1020, "right": 1500,
+		  "waves": [
+			[
+				{"type": "KYC", "x": 1400, "y": 290},
+				{"type": "KYC", "x": 1420, "y": 310},
+				{"type": "BANKER", "x": 1460, "y": 280},
+				{"type": "BANKER", "x": 1050, "y": 300},
+			],
 		  ]},
-		# Encounter 3: bigger fight + drone introduction
-		{ "trigger_x": 1500, "left": 1420, "right": 1900,
-		  "enemies": [
-			{"type": "KYC", "x": 1850, "y": 260},
-			{"type": "BANKER", "x": 1460, "y": 300},
-			{"type": "DRONE", "x": 1750, "y": 280},
-			{"type": "BANKER", "x": 1460, "y": 270},
+		# Encounter 3 (x=2000): Mixed — KYC + Enforcer placeholder, then second wave
+		{ "trigger_x": 2000, "left": 1900, "right": 2400,
+		  "waves": [
+			[
+				{"type": "KYC", "x": 2350, "y": 280},
+				{"type": "KYC", "x": 2340, "y": 310},
+				{"type": "ENFORCER", "x": 1940, "y": 290},
+			],
+			[
+				{"type": "BANKER", "x": 2360, "y": 290},
+				{"type": "KYC", "x": 1950, "y": 300},
+				{"type": "ENFORCER", "x": 2350, "y": 300},
+			],
 		  ]},
-		# Encounter 4: enforcer introduction
-		{ "trigger_x": 2200, "left": 2100, "right": 2600,
-		  "enemies": [
-			{"type": "ENFORCER", "x": 2550, "y": 280},
-			{"type": "KYC", "x": 2550, "y": 310},
-			{"type": "KYC", "x": 2150, "y": 270},
-		  ]},
-		# BOSS: Precinct Captain
+		# Boss encounter (x=2800): Precinct Captain
 		{ "trigger_x": 2800, "left": 2700, "right": 3100,
-		  "enemies": [
-			{"type": "BOSS", "x": 3050, "y": 280},
+		  "waves": [
+			[
+				{"type": "BOSS", "x": 3050, "y": 290},
+			],
 		  ]},
 	]
 
 func _check_encounters():
 	if encounter_active:
-		# Gate the player
-		if player.global_position.x > gate_right - 16:
-			player.global_position.x = gate_right - 16
-		if player.global_position.x < gate_left + 16:
-			player.global_position.x = gate_left + 16
-
-		# Check if all enemies are dead
+		# Check if all enemies in current wave are dead
 		var alive = get_tree().get_nodes_in_group("enemies")
 		if alive.is_empty():
-			_end_encounter()
+			var enc = encounters[current_encounter]
+			var waves = enc["waves"] as Array
+			encounter_wave += 1
+			if encounter_wave < waves.size():
+				# Spawn next wave
+				_spawn_wave(waves[encounter_wave])
+				_show_announcement("WAVE %d" % (encounter_wave + 1))
+			else:
+				_end_encounter()
 		return
 
+	# Hide GO prompt once player moves past it
+	if go_prompt and is_instance_valid(go_prompt):
+		if current_encounter >= 0:
+			var enc = encounters[current_encounter]
+			if player.global_position.x > enc["right"] + 40:
+				go_prompt.queue_free()
+				go_prompt = null
+
 	# Check if player crossed the next trigger
+	if _splash_active:
+		return
 	var next = current_encounter + 1
 	if next >= encounters.size():
 		return
 	if player.global_position.x >= encounters[next]["trigger_x"]:
+		# Remove GO prompt from previous encounter
+		if go_prompt and is_instance_valid(go_prompt):
+			go_prompt.queue_free()
+			go_prompt = null
 		current_encounter = next
 		_start_encounter(encounters[next])
 
 func _start_encounter(enc: Dictionary):
 	encounter_active = true
+	encounter_wave = 0
 	gate_left = enc["left"]
 	gate_right = enc["right"]
 
-	# Red gate barrier
-	gate_visual = ColorRect.new()
-	gate_visual.color = Color(1, 0.2, 0.2, 0.3)
-	gate_visual.position = Vector2(gate_right - 4, FLOOR_TOP)
-	gate_visual.size = Vector2(4, FLOOR_BOTTOM - FLOOR_TOP)
-	gate_visual.z_index = 3000
-	add_child(gate_visual)
+	# Lock camera to encounter area
+	if camera:
+		_cam_limit_left_saved = camera.limit_left
+		_cam_limit_right_saved = camera.limit_right
+		camera.limit_left = int(gate_left - 40)
+		camera.limit_right = int(gate_right + 40)
+
+	# Physical gate barriers — StaticBody2D so player collides
+	_create_gate_barrier(gate_left, true)
+	_create_gate_barrier(gate_right, false)
 
 	SFX.gate_lock(get_tree())
 
-	# Spawn enemies
-	for e_data in enc["enemies"]:
-		_spawn_enemy(Vector2(e_data["x"], e_data["y"]), e_data["type"])
+	# Spawn first wave
+	var waves = enc["waves"] as Array
+	_spawn_wave(waves[0])
 
 	# Announcement
 	_show_announcement("ENEMIES INCOMING")
 
+func _spawn_wave(wave: Array):
+	for e_data in wave:
+		_spawn_enemy(Vector2(e_data["x"], e_data["y"]), e_data["type"])
+
+func _create_gate_barrier(x_pos: float, is_left: bool):
+	var gate_height = FLOOR_BOTTOM - FLOOR_TOP + 20
+	var gate_y = (FLOOR_TOP + FLOOR_BOTTOM) / 2.0
+
+	# StaticBody2D for physical collision
+	var body = StaticBody2D.new()
+	body.position = Vector2(x_pos, gate_y)
+	body.name = "GateLeft" if is_left else "GateRight"
+	var col = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(8, gate_height)
+	col.shape = shape
+	body.add_child(col)
+	add_child(body)
+
+	# Red translucent visual that pulses
+	var visual = ColorRect.new()
+	visual.color = Color(1, 0.15, 0.1, 0.35)
+	visual.size = Vector2(6, gate_height)
+	visual.position = Vector2(-3, -gate_height / 2.0)
+	visual.z_index = 3000
+	body.add_child(visual)
+
+	# Pulse tween
+	var tween = visual.create_tween().set_loops()
+	tween.tween_property(visual, "modulate:a", 0.5, 0.4)
+	tween.tween_property(visual, "modulate:a", 1.0, 0.4)
+
+	# Scanline/hash marks on the gate for visual interest
+	for i in range(int(gate_height / 12)):
+		var mark = ColorRect.new()
+		mark.color = Color(1, 0.3, 0.2, 0.5)
+		mark.size = Vector2(4, 2)
+		mark.position = Vector2(-2, -gate_height / 2.0 + i * 12 + 4)
+		visual.add_child(mark)
+
+	if is_left:
+		gate_left_body = body
+		gate_left_visual = visual
+	else:
+		gate_right_body = body
+		gate_right_visual = visual
+
+func _dissolve_gate(body: StaticBody2D, visual: ColorRect):
+	if not body or not is_instance_valid(body):
+		return
+	# Disable collision immediately so player can walk through
+	for child in body.get_children():
+		if child is CollisionShape2D:
+			child.set_deferred("disabled", true)
+	# Dissolve visual
+	if visual and is_instance_valid(visual):
+		var tween = visual.create_tween()
+		tween.tween_property(visual, "modulate:a", 0.0, 0.5)
+		tween.parallel().tween_property(visual, "scale:x", 3.0, 0.5)
+		tween.tween_callback(body.queue_free)
+	else:
+		body.queue_free()
+
 func _end_encounter():
 	encounter_active = false
-	if gate_visual:
-		gate_visual.queue_free()
-		gate_visual = null
+
+	# Dissolve gates with sound
+	SFX.gate_open(get_tree())
+	_dissolve_gate(gate_left_body, gate_left_visual)
+	_dissolve_gate(gate_right_body, gate_right_visual)
+	gate_left_body = null
+	gate_right_body = null
+	gate_left_visual = null
+	gate_right_visual = null
+
+	# Restore camera limits
+	if camera:
+		camera.limit_left = _cam_limit_left_saved
+		camera.limit_right = _cam_limit_right_saved
+
+	# Track kills — count how many enemies were in all waves of this encounter
+	var enc = encounters[current_encounter]
+	var waves = enc["waves"] as Array
+	for wave in waves:
+		_enemies_defeated += wave.size()
 
 	# Check if this was the last encounter (boss)
 	if current_encounter >= encounters.size() - 1:
+		SFX.level_complete(get_tree())
 		get_tree().create_timer(1.5).timeout.connect(_on_level_complete)
 		_show_announcement("LEVEL CLEAR")
 	else:
 		_show_announcement("AREA CLEAR")
+		SFX.menu_select(get_tree())
+		# Show GO >> prompt
+		_show_go_prompt()
 
 func _spawn_enforcer(pos: Vector2):
 	var e = CharacterBody2D.new()
@@ -992,6 +1130,30 @@ func _spawn_veribot(pos: Vector2):
 
 	add_child(e)
 
+func _show_go_prompt():
+	# Flashing "GO >>" arrow on the right side of the screen
+	var hud = get_node_or_null("HUD")
+	if not hud:
+		return
+
+	go_prompt = Label.new()
+	go_prompt.text = "GO >>"
+	go_prompt.position = Vector2(560, 170)
+	go_prompt.add_theme_font_size_override("font_size", 18)
+	go_prompt.add_theme_color_override("font_color", Color(1, 0.6, 0))
+	go_prompt.z_index = 3500
+	hud.add_child(go_prompt)
+
+	# Bounce/pulse animation
+	var tween = go_prompt.create_tween().set_loops()
+	tween.tween_property(go_prompt, "position:x", 570.0, 0.4).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(go_prompt, "position:x", 555.0, 0.4).set_ease(Tween.EASE_IN_OUT)
+
+	# Flash alpha
+	var flash_tween = go_prompt.create_tween().set_loops()
+	flash_tween.tween_property(go_prompt, "modulate:a", 0.4, 0.3)
+	flash_tween.tween_property(go_prompt, "modulate:a", 1.0, 0.3)
+
 func _show_announcement(text: String):
 	var hud = get_node_or_null("HUD")
 	if not hud:
@@ -1081,6 +1243,7 @@ func _show_level_splash(level_num: String, level_name: String, block_text: Strin
 		name_lbl.queue_free()
 		block_lbl.queue_free()
 		hint.queue_free()
+		_splash_active = false
 	)
 
 func _on_player_died():
@@ -1147,58 +1310,159 @@ func _unhandled_input(event):
 
 func _on_level_complete():
 	_level_complete_flag = true
+
 	var hud = get_node_or_null("HUD")
 	if not hud:
 		return
 
+	# Calculate stats
+	var elapsed = Time.get_ticks_msec() / 1000.0 - _level_start_time
+	var minutes = int(elapsed) / 60
+	var seconds = int(elapsed) % 60
+	var time_str = "%d:%02d" % [minutes, seconds]
+	var sats_earned = GameState.sats - _sats_at_start
+
+	# Letter grade based on sats earned
+	var grade = "C"
+	if sats_earned >= 8000:
+		grade = "S"
+	elif sats_earned >= 5000:
+		grade = "A"
+	elif sats_earned >= 3000:
+		grade = "B"
+
+	var grade_color = Color(1, 0.6, 0)  # default orange
+	match grade:
+		"S": grade_color = Color(1, 0.85, 0)  # gold
+		"A": grade_color = Color(0, 1, 0.4)   # green
+		"B": grade_color = Color(0.4, 0.8, 1)  # cyan
+		"C": grade_color = Color(0.6, 0.6, 0.6)  # gray
+
+	# Dark overlay
 	var overlay = ColorRect.new()
-	overlay.color = Color(0, 0, 0, 0.85)
+	overlay.color = Color(0, 0, 0, 0.9)
 	overlay.size = Vector2(640, 360)
 	overlay.z_index = 4000
 	hud.add_child(overlay)
 
+	# "LEVEL COMPLETE" title — fades in
 	var title = Label.new()
 	title.text = "LEVEL COMPLETE"
-	title.position = Vector2(120, 80)
+	title.position = Vector2(120, 40)
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", Color(0, 1, 0.4))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.size = Vector2(400, 40)
-	title.z_index = 4000
+	title.z_index = 4001
+	title.modulate.a = 0
 	hud.add_child(title)
 
 	var name_lbl = Label.new()
 	name_lbl.text = "THE GRID"
-	name_lbl.position = Vector2(120, 110)
+	name_lbl.position = Vector2(120, 70)
 	name_lbl.add_theme_font_size_override("font_size", 18)
 	name_lbl.add_theme_color_override("font_color", Color(1, 0.6, 0))
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.size = Vector2(400, 30)
-	name_lbl.z_index = 4000
+	name_lbl.z_index = 4001
+	name_lbl.modulate.a = 0
 	hud.add_child(name_lbl)
 
-	# Stats
-	var stats = [
-		"SATS COLLECTED: %s" % _format_sats(GameState.sats),
-		"ENEMIES VALIDATED: %d" % (current_encounter + 1),
-	]
-	for s_idx in range(stats.size()):
-		var s_lbl = Label.new()
-		s_lbl.text = stats[s_idx]
-		s_lbl.position = Vector2(120, 160 + s_idx * 20)
-		s_lbl.add_theme_font_size_override("font_size", 12)
-		s_lbl.add_theme_color_override("font_color", Color(0, 1, 0.4))
-		s_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		s_lbl.size = Vector2(400, 20)
-		s_lbl.z_index = 4000
-		hud.add_child(s_lbl)
+	# Separator line
+	var sep = ColorRect.new()
+	sep.color = Color(0, 1, 0.4, 0.4)
+	sep.position = Vector2(180, 105)
+	sep.size = Vector2(280, 1)
+	sep.z_index = 4001
+	sep.modulate.a = 0
+	hud.add_child(sep)
 
+	# Stats labels — typed out with delays
+	var green = Color(0, 1, 0.4)
+	var orange = Color(1, 0.8, 0.2)
+	var stat_labels: Array[Label] = []
+
+	var stats = [
+		["ENEMIES DEFEATED", str(_enemies_defeated)],
+		["SATS COLLECTED", _format_sats(sats_earned)],
+		["TIME", time_str],
+	]
+
+	for i in range(stats.size()):
+		var key_lbl = Label.new()
+		key_lbl.text = "> %s" % stats[i][0]
+		key_lbl.position = Vector2(160, 120 + i * 24)
+		key_lbl.add_theme_font_size_override("font_size", 12)
+		key_lbl.add_theme_color_override("font_color", green)
+		key_lbl.z_index = 4001
+		key_lbl.modulate.a = 0
+		hud.add_child(key_lbl)
+		stat_labels.append(key_lbl)
+
+		var val_lbl = Label.new()
+		val_lbl.text = stats[i][1]
+		val_lbl.position = Vector2(360, 120 + i * 24)
+		val_lbl.add_theme_font_size_override("font_size", 12)
+		val_lbl.add_theme_color_override("font_color", orange)
+		val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		val_lbl.size = Vector2(120, 20)
+		val_lbl.z_index = 4001
+		val_lbl.modulate.a = 0
+		hud.add_child(val_lbl)
+		stat_labels.append(val_lbl)
+
+	# Grade display
+	var grade_title = Label.new()
+	grade_title.text = "> GRADE"
+	grade_title.position = Vector2(160, 205)
+	grade_title.add_theme_font_size_override("font_size", 12)
+	grade_title.add_theme_color_override("font_color", green)
+	grade_title.z_index = 4001
+	grade_title.modulate.a = 0
+	hud.add_child(grade_title)
+
+	var grade_lbl = Label.new()
+	grade_lbl.text = grade
+	grade_lbl.position = Vector2(280, 195)
+	grade_lbl.add_theme_font_size_override("font_size", 28)
+	grade_lbl.add_theme_color_override("font_color", grade_color)
+	grade_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	grade_lbl.size = Vector2(80, 40)
+	grade_lbl.z_index = 4001
+	grade_lbl.modulate.a = 0
+	hud.add_child(grade_lbl)
+
+	# Continue prompt
 	var prompt = Label.new()
 	prompt.text = "[ENTER] CONTINUE"
-	prompt.position = Vector2(120, 260)
+	prompt.position = Vector2(120, 280)
 	prompt.add_theme_font_size_override("font_size", 12)
 	prompt.add_theme_color_override("font_color", Color(0, 1, 0.4))
 	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	prompt.size = Vector2(400, 30)
-	prompt.z_index = 4000
+	prompt.z_index = 4001
+	prompt.modulate.a = 0
 	hud.add_child(prompt)
+
+	# Blinking cursor on prompt
+	var prompt_blink = prompt.create_tween().set_loops()
+	prompt_blink.tween_property(prompt, "modulate:a", 0.3, 0.5)
+	prompt_blink.tween_property(prompt, "modulate:a", 1.0, 0.5)
+
+	# Staggered reveal animation
+	var reveal = overlay.create_tween()
+	reveal.tween_property(title, "modulate:a", 1.0, 0.3)
+	reveal.parallel().tween_property(name_lbl, "modulate:a", 1.0, 0.3)
+	reveal.tween_property(sep, "modulate:a", 1.0, 0.2)
+	# Reveal each stat pair one by one
+	for i in range(stats.size()):
+		reveal.tween_property(stat_labels[i * 2], "modulate:a", 1.0, 0.15)
+		reveal.parallel().tween_property(stat_labels[i * 2 + 1], "modulate:a", 1.0, 0.15)
+	# Grade reveal with a slight punch
+	reveal.tween_property(grade_title, "modulate:a", 1.0, 0.15)
+	reveal.tween_property(grade_lbl, "modulate:a", 1.0, 0.2)
+	reveal.tween_property(grade_lbl, "scale", Vector2(1.3, 1.3), 0.1)
+	reveal.tween_property(grade_lbl, "scale", Vector2(1.0, 1.0), 0.1)
+	# Finally show prompt then pause
+	reveal.tween_property(prompt, "modulate:a", 1.0, 0.2)
+	reveal.tween_callback(func(): get_tree().paused = true)
