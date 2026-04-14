@@ -24,24 +24,28 @@ const PROP_TEXTURES = {
 	PropType.CRATE: "res://assets/sprites/props/prop_crate.png",
 }
 
-# Collision shapes (width, height) for each type — foot-level hitbox
+# Collision shapes (width, height) — taller so player can't walk through
+# Y-position of collision shape offset so sprite base sits at body origin
 const PROP_COLLISION = {
-	PropType.VENDING: Vector2(50, 12),
-	PropType.CHECKPOINT: Vector2(60, 12),
-	PropType.BILLBOARD: Vector2(20, 8),
-	PropType.ATM: Vector2(70, 12),
-	PropType.CRATE: Vector2(36, 12),
+	PropType.VENDING: Vector2(32, 24),
+	PropType.CHECKPOINT: Vector2(40, 24),
+	PropType.BILLBOARD: Vector2(14, 14),  # Billboards are background, small collision
+	PropType.ATM: Vector2(32, 24),
+	PropType.CRATE: Vector2(26, 22),
 }
 
 func _ready():
 	_hp = prop_hp
 	add_to_group("destructibles")
 
-	# Collision shape (foot-level for 2.5D depth sorting)
+	# Collision shape — taller to actually block player movement
+	# Positioned above the body origin so it spans the prop's lower body
 	var col = CollisionShape2D.new()
 	var shape = RectangleShape2D.new()
-	shape.size = PROP_COLLISION.get(prop_type, Vector2(32, 12))
+	var col_size = PROP_COLLISION.get(prop_type, Vector2(32, 24))
+	shape.size = col_size
 	col.shape = shape
+	col.position = Vector2(0, -col_size.y / 2.0)  # center above body origin
 	add_child(col)
 
 	# Load prop sprite from texture

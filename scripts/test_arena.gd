@@ -82,33 +82,39 @@ func _ready():
 	player.add_child(camera)
 	camera.make_current()
 
+	# Walkway center Y for prop/pickup positioning
+	var mid_y = (FLOOR_TOP + FLOOR_BOTTOM) / 2.0
+
 	# === DESTRUCTIBLE PROPS ===
-	# Placed at the edges of the street (FLOOR_TOP = back, FLOOR_BOTTOM = front)
-	# BETWEEN encounter zones so they don't clutter fights
-	# Encounter zones: 1=x400, 2=x1200, 3=x2000, boss=x2800
+	# Tall props (vending, ATM, checkpoint) at BACK wall — base sits at FLOOR_TOP
+	# Small props (crates) in the MIDDLE of the walkway — actual obstacles
+	# Billboards at the back, pure decoration
+	# Zones: encounter 1=x400, 2=x1200, 3=x2000, boss=x2800
 
-	# Before encounter 1 — intro area
-	Destructible.spawn(self, Vector2(180, FLOOR_TOP + 4), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(280, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
+	# Pre-encounter 1 (intro 0-400)
+	Destructible.spawn(self, Vector2(180, FLOOR_TOP + 2), Destructible.PropType.VENDING)
 
-	# Between encounters 1 and 2 — breathing room
-	Destructible.spawn(self, Vector2(700, FLOOR_TOP + 4), Destructible.PropType.ATM)
-	Destructible.spawn(self, Vector2(850, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
-	Destructible.spawn(self, Vector2(1000, FLOOR_TOP + 4), Destructible.PropType.CHECKPOINT)
+	# Between 1-2 (500-1100) — breathing room, heavy props
+	Destructible.spawn(self, Vector2(620, FLOOR_TOP + 2), Destructible.PropType.ATM)
+	Destructible.spawn(self, Vector2(800, FLOOR_TOP + 2), Destructible.PropType.CHECKPOINT)
+	Destructible.spawn(self, Vector2(920, mid_y + 8), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(1050, FLOOR_TOP + 2), Destructible.PropType.BILLBOARD)
 
-	# Between encounters 2 and 3
-	Destructible.spawn(self, Vector2(1500, FLOOR_BOTTOM - 8), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(1700, FLOOR_TOP + 4), Destructible.PropType.CRATE)
-	Destructible.spawn(self, Vector2(1850, FLOOR_TOP + 4), Destructible.PropType.ATM)
+	# Between 2-3 (1300-1900)
+	Destructible.spawn(self, Vector2(1440, FLOOR_TOP + 2), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(1620, mid_y + 4), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(1720, mid_y + 12), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(1880, FLOOR_TOP + 2), Destructible.PropType.ATM)
 
-	# Between encounter 3 and boss — last chance to stock up
-	Destructible.spawn(self, Vector2(2350, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
-	Destructible.spawn(self, Vector2(2500, FLOOR_TOP + 4), Destructible.PropType.VENDING)
-	Destructible.spawn(self, Vector2(2650, FLOOR_BOTTOM - 8), Destructible.PropType.CRATE)
+	# Between 3-boss (2100-2750) — stock up zone
+	Destructible.spawn(self, Vector2(2200, FLOOR_TOP + 2), Destructible.PropType.VENDING)
+	Destructible.spawn(self, Vector2(2350, mid_y + 8), Destructible.PropType.CRATE)
+	Destructible.spawn(self, Vector2(2500, FLOOR_TOP + 2), Destructible.PropType.ATM)
+	Destructible.spawn(self, Vector2(2600, FLOOR_TOP + 2), Destructible.PropType.CHECKPOINT)
+	Destructible.spawn(self, Vector2(2720, mid_y + 4), Destructible.PropType.CRATE)
 
 	# === PRE-PLACED HEALTH & POWER-UPS ===
 	# Generous health drops between encounters so the game is beatable
-	var mid_y = (FLOOR_TOP + FLOOR_BOTTOM) / 2.0
 
 	# Start of level — free heal
 	Pickup.spawn_power_up(self, Vector2(150, mid_y), Pickup.PickupType.ORANGE_PILL)
