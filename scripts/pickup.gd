@@ -10,6 +10,7 @@ enum PickupType { SATS, ORANGE_PILL, FULL_NODE, COLD_STORAGE, LIGHTNING, WHITEPA
 @export var weapon_name: String = ""
 @export var weapon_damage_bonus: int = 0
 @export var weapon_uses: int = 8
+@export var weapon_color: Color = Color(0.7, 0.7, 0.7)
 
 var _bob_base_y: float = 0
 var _magnet_range: float = 72.0
@@ -62,8 +63,8 @@ func _create_visual():
 			color = Color(1, 1, 1)
 			label_text = "WHITEPAPER\nSCREEN CLEAR"
 		PickupType.WEAPON:
-			color = Color(0.7, 0.7, 0.7)
-			label_text = weapon_name
+			color = weapon_color
+			label_text = "%s\n%d uses" % [weapon_name, weapon_uses]
 
 	# Glow halo
 	var halo = ColorRect.new()
@@ -166,7 +167,12 @@ func _collect(player: Player):
 
 		PickupType.WEAPON:
 			SFX.grab(get_tree())
-			_show_effect(player, weapon_name, Color(0.7, 0.7, 0.7))
+			player.current_weapon = weapon_name
+			player.weapon_damage_bonus = weapon_damage_bonus
+			player.weapon_uses_left = weapon_uses
+			if player.has_method("_on_weapon_equipped"):
+				player._on_weapon_equipped()
+			_show_effect(player, "%s\n+%d DMG  %d USES" % [weapon_name, weapon_damage_bonus, weapon_uses], weapon_color)
 
 	queue_free()
 
@@ -202,16 +208,43 @@ static func spawn_power_up(parent: Node, pos: Vector2, type: PickupType) -> Pick
 	parent.add_child(p)
 	return p
 
+static func spawn_weapon(parent: Node, pos: Vector2, weapon_type: String = "") -> Pickup:
+	var p = Pickup.new()
+	p.pickup_type = PickupType.WEAPON
+	var choice = weapon_type
+	if choice == "":
+		choice = ["WRENCH", "KEYBOARD", "GAVEL"].pick_random()
+	match choice:
+		"WRENCH":
+			p.weapon_name = "WRENCH"
+			p.weapon_damage_bonus = 8
+			p.weapon_uses = 12
+			p.weapon_color = Color(1, 0.55, 0.1)
+		"KEYBOARD":
+			p.weapon_name = "KEYBOARD"
+			p.weapon_damage_bonus = 5
+			p.weapon_uses = 16
+			p.weapon_color = Color(0.3, 0.9, 1.0)
+		"GAVEL":
+			p.weapon_name = "GAVEL"
+			p.weapon_damage_bonus = 10
+			p.weapon_uses = 8
+			p.weapon_color = Color(1, 0.85, 0.1)
+	p.global_position = pos
+	parent.add_child(p)
+	return p
+
 static func spawn_random_drop(parent: Node, pos: Vector2):
-	# 40% sats, 35% orange pill (health), 15% power-up, 10% weapon
-	# Generous health drops to keep the game fun, not frustrating
+	# 35% sats, 30% orange pill, 15% power-up, 10% weapon, 10% whitepaper
 	var roll = randf()
-	if roll < 0.40:
+	if roll < 0.35:
 		spawn_sats(parent, pos, [100, 100, 250, 250, 500].pick_random())
-	elif roll < 0.75:
+	elif roll < 0.65:
 		spawn_power_up(parent, pos, PickupType.ORANGE_PILL)
-	elif roll < 0.90:
+	elif roll < 0.80:
 		var types = [PickupType.FULL_NODE, PickupType.COLD_STORAGE, PickupType.LIGHTNING]
 		spawn_power_up(parent, pos, types.pick_random())
+	elif roll < 0.90:
+		spawn_weapon(parent, pos)
 	else:
 		spawn_power_up(parent, pos, PickupType.WHITEPAPER)

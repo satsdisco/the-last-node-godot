@@ -129,6 +129,20 @@ func _ready():
 	Pickup.spawn_power_up(self, Vector2(2720, 300), Pickup.PickupType.FULL_NODE)
 	Pickup.spawn_power_up(self, Vector2(2740, 300), Pickup.PickupType.COLD_STORAGE)
 
+	# Pre-placed weapons — one of each type, staged along the level
+	Pickup.spawn_weapon(self, Vector2(350, mid_y + 10), "WRENCH")
+	Pickup.spawn_weapon(self, Vector2(1100, mid_y), "KEYBOARD")
+	Pickup.spawn_weapon(self, Vector2(2200, mid_y), "GAVEL")
+
+	# Pleb NPCs — civilians trapped near checkpoints; rescue them for sats + flavor
+	Pleb.spawn(self, Vector2(900, FLOOR_TOP + 20))   # after encounter 1, near checkpoint prop
+	Pleb.spawn(self, Vector2(1020, FLOOR_BOTTOM - 20))
+	Pleb.spawn(self, Vector2(1780, FLOOR_TOP + 20))  # between encounters 2-3
+	Pleb.spawn(self, Vector2(2420, FLOOR_BOTTOM - 16))  # pre-boss
+
+	# Reset combo peak for fresh stats
+	GameState.combo_peak = 0
+
 	# Encounters — triggered when player reaches X position
 	_setup_encounters()
 
@@ -467,12 +481,19 @@ func _create_hud():
 	bar.size = Vector2(190, 6)
 	hud.add_child(bar)
 
-	# Weapon display
+	# Weapon display — icon swatch + name + uses (deferred population)
+	var weapon_icon = ColorRect.new()
+	weapon_icon.name = "WeaponIcon"
+	weapon_icon.color = Color(1, 1, 1, 0)
+	weapon_icon.size = Vector2(10, 10)
+	weapon_icon.position = Vector2(210, 14)
+	hud.add_child(weapon_icon)
+
 	var weapon_lbl = Label.new()
 	weapon_lbl.name = "WeaponLabel"
 	weapon_lbl.text = ""
-	weapon_lbl.position = Vector2(8, 40)
-	weapon_lbl.add_theme_font_size_override("font_size", 9)
+	weapon_lbl.position = Vector2(224, 10)
+	weapon_lbl.add_theme_font_size_override("font_size", 10)
 	weapon_lbl.add_theme_color_override("font_color", orange)
 	hud.add_child(weapon_lbl)
 
@@ -661,6 +682,18 @@ func _process(delta):
 		var state_idx = player.state as int
 		if state_idx >= 0 and state_idx < state_names.size():
 			state_lbl.text = "STATE: %s" % state_names[state_idx]
+
+	# Weapon HUD indicator
+	var weapon_icon = hud.get_node_or_null("WeaponIcon")
+	var weapon_lbl = hud.get_node_or_null("WeaponLabel")
+	if weapon_icon and weapon_lbl:
+		if player.current_weapon != "":
+			weapon_icon.color = player.weapon_color
+			weapon_lbl.text = "%s x%d" % [player.current_weapon, player.weapon_uses_left]
+			weapon_lbl.add_theme_color_override("font_color", player.weapon_color)
+		else:
+			weapon_icon.color = Color(1, 1, 1, 0)
+			weapon_lbl.text = ""
 
 	# Blinking cursor on status line
 	_blink_timer += delta
@@ -1383,6 +1416,7 @@ func _on_level_complete():
 	var stats = [
 		["ENEMIES DEFEATED", str(_enemies_defeated)],
 		["SATS COLLECTED", _format_sats(sats_earned)],
+		["MAX COMBO", str(GameState.combo_peak)],
 		["TIME", time_str],
 	]
 

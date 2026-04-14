@@ -18,6 +18,9 @@ var hard_mode: bool = false
 var completed_levels: int = 0
 var halving_active: bool = false
 
+# Session peak stats
+var combo_peak: int = 0
+
 # Level order
 const LEVEL_ORDER = [
 	"res://scenes/levels/level_1.tscn",
@@ -38,6 +41,7 @@ func reset():
 	hard_mode = false
 	completed_levels = 0
 	halving_active = false
+	combo_peak = 0
 
 func next_level_path() -> String:
 	var idx = mini(completed_levels, LEVEL_ORDER.size() - 1)

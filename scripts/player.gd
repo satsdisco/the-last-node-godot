@@ -57,6 +57,17 @@ const DECEL: float = 1800.0
 # Walking dust timer
 var _dust_timer: float = 0.0
 
+# Weapon state
+var current_weapon: String = ""
+var weapon_damage_bonus: int = 0
+var weapon_uses_left: int = 0
+var weapon_color: Color = Color(1, 1, 1)
+var _weapon_just_equipped: bool = false
+
+# Combo FX timers
+var _combo_fire_timer: float = 0.0
+var combo_peak: int = 0
+
 # Hitbox Area2D — activates during attack frames
 var hitbox_area: Area2D = null
 var hurtbox_area: Area2D = null
@@ -384,9 +395,11 @@ func try_attack():
 	elif forward:
 		dir_mode = "lunge"
 
-	var dmg = int(base_damage * damage_buff_mult)
+	var dmg = int((base_damage + weapon_damage_bonus) * damage_buff_mult)
 	var range_px = attack_range
 	var slash_color = Color(1, 0.6, 0, 0.8)
+	if current_weapon != "":
+		slash_color = Color(weapon_color.r, weapon_color.g, weapon_color.b, 0.85)
 
 	# Base forward lunge on every attack — slide forward slightly when punching
 	velocity = Vector2(facing * 80, 0)
@@ -445,6 +458,29 @@ func try_attack():
 		if dir_mode == "launcher" and enemy.has_method("pop_up"):
 			enemy.pop_up(0.5)
 
+	# Track combo peak in global state
+	if combo_count > GameState.combo_peak:
+		GameState.combo_peak = combo_count
+
+	# GAVEL AOE shockwave on hit
+	if hit_any and current_weapon == "GAVEL":
+		_gavel_shockwave()
+
+	# Weapon decrement + feedback — only when an attack actually connects
+	if hit_any and current_weapon != "":
+		if _weapon_just_equipped:
+			_show_move_name(current_weapon)
+			_weapon_just_equipped = false
+		weapon_uses_left -= 1
+		if current_weapon == "KEYBOARD":
+			# Glitchy high-pitched keyboard click
+			SFX.sat_pickup(get_tree())
+		if weapon_uses_left <= 0:
+			_show_move_name("%s BROKE" % current_weapon)
+			current_weapon = ""
+			weapon_damage_bonus = 0
+			weapon_uses_left = 0
+
 	if hit_any:
 		var intensity = 6.0 if combo_count >= combo_length else 3.0
 		CombatJuice.hitstop(get_tree(), 0.04 if combo_count < combo_length else 0.08)
@@ -454,9 +490,10 @@ func try_attack():
 		# Camera zoom pulse on heavy hits (combo finishers, specials)
 		if combo_count >= combo_length:
 			_camera_zoom_pulse()
-		# Combo popup at milestone hits
+			_finisher_orange_pulse()
+		# Combo popup at milestone hits — escalating drama
 		if combo_count >= 3 and combo_count % 2 == 1:
-			CombatJuice.combo_popup(get_parent(), global_position + Vector2(0, -40), combo_count)
+			_dramatic_combo_popup(combo_count)
 
 	if combo_count >= combo_length:
 		combo_count = 0
@@ -848,12 +885,132 @@ func _update_visuals():
 	else:
 		modulate.a = 1.0
 
-	# Buff color tint
-	if damage_buff_mult > 1.0:
+	# Buff color tint (with combo escalation override)
+	var now_combo = Time.get_ticks_msec() / 1000.0
+	var combo_active = combo_count >= 3 and (now_combo - last_combo_time) < COMBO_WINDOW
+	if combo_active and combo_count >= 7:
+		# Combo 7+: pulsing bitcoin-orange aura
+		var pulse = 0.5 + 0.5 * sin(now_combo * 18.0)
+		modulate = Color(1.0, 0.55 + 0.3 * pulse, 0.1, modulate.a)
+	elif combo_active and combo_count >= 3:
+		# Combo 3-6: subtle orange glow
+		modulate = Color(1.0, 0.8, 0.55, modulate.a)
+	elif damage_buff_mult > 1.0:
 		modulate = Color(0.5, 1, 0.5, modulate.a)
 	elif speed_buff_mult > 1.0:
 		modulate = Color(1, 1, 0.5, modulate.a)
 	else:
 		modulate = Color(1, 1, 1, modulate.a)
 
+	# Combo 5-6: fire particles at feet while walking
+	if combo_active and combo_count >= 5 and state == State.WALK:
+		_combo_fire_timer += get_physics_process_delta_time()
+		if _combo_fire_timer > 0.1:
+			_combo_fire_timer = 0.0
+			_spawn_combo_fire()
+
 	z_index = int(global_position.y)
+
+# ==== WEAPON / COMBO HELPERS ====
+
+func _on_weapon_equipped():
+	# Cache color from the last pickup — defaults by name
+	match current_weapon:
+		"WRENCH": weapon_color = Color(1, 0.55, 0.1)
+		"KEYBOARD": weapon_color = Color(0.3, 0.9, 1.0)
+		"GAVEL": weapon_color = Color(1, 0.85, 0.1)
+		_: weapon_color = Color(1, 1, 1)
+	_weapon_just_equipped = true
+
+func _gavel_shockwave():
+	# Spawn a small AOE circle that damages all enemies within 50px
+	var ring = ColorRect.new()
+	ring.color = Color(1, 0.85, 0.1, 0.7)
+	ring.size = Vector2(16, 16)
+	ring.global_position = global_position - Vector2(8, 20)
+	ring.z_index = int(global_position.y) + 6
+	ring.pivot_offset = Vector2(8, 8)
+	get_parent().add_child(ring)
+	var tween = ring.create_tween()
+	tween.tween_property(ring, "scale", Vector2(6.0, 6.0), 0.25)
+	tween.parallel().tween_property(ring, "modulate:a", 0.0, 0.25)
+	tween.tween_callback(ring.queue_free)
+
+	CombatJuice.shake(get_viewport().get_camera_2d(), 4.0, 0.12)
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy):
+			continue
+		if global_position.distance_to(enemy.global_position) <= 50.0:
+			if enemy.has_method("take_hit"):
+				enemy.take_hit(6, facing)
+
+func _spawn_combo_fire():
+	var puff = ColorRect.new()
+	puff.color = Color(1.0, 0.55, 0.1, 0.85)
+	puff.size = Vector2(3, 3)
+	puff.global_position = global_position + Vector2(randf_range(-6, 6), randf_range(-2, 1))
+	puff.z_index = int(global_position.y) - 1
+	get_parent().add_child(puff)
+	var tween = puff.create_tween()
+	tween.tween_property(puff, "global_position:y", puff.global_position.y - randf_range(8, 14), 0.35)
+	tween.parallel().tween_property(puff, "modulate:a", 0.0, 0.35)
+	tween.parallel().tween_property(puff, "scale", Vector2(2.2, 2.2), 0.35)
+	tween.tween_callback(puff.queue_free)
+
+func _dramatic_combo_popup(count: int):
+	var lbl = Label.new()
+	var txt = ""
+	var size_px = 16
+	var color = Color(1, 0.6, 0)
+	var shake_it = false
+	if count >= 10:
+		txt = "%d HIT!!" % count
+		size_px = 34
+		color = Color(1, 0.9, 0.2)
+		shake_it = true
+	elif count >= 7:
+		txt = "%d HIT!" % count
+		size_px = 26
+		color = Color(1, 0.25, 0.2)
+	elif count >= 5:
+		txt = "%d HIT" % count
+		size_px = 22
+		color = Color(1, 0.6, 0)
+	else:
+		txt = "%d HIT" % count
+		size_px = 16
+		color = Color(1, 0.8, 0.2)
+	lbl.text = txt
+	lbl.global_position = global_position + Vector2(-50, -80)
+	lbl.add_theme_font_size_override("font_size", size_px)
+	lbl.add_theme_color_override("font_color", color)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.size = Vector2(100, 40)
+	lbl.z_index = 450
+	lbl.scale = Vector2(1.6, 1.6)
+	lbl.pivot_offset = Vector2(50, 20)
+	get_parent().add_child(lbl)
+	var tween = lbl.create_tween()
+	tween.tween_property(lbl, "scale", Vector2.ONE, 0.12)
+	tween.parallel().tween_property(lbl, "global_position:y", lbl.global_position.y - 40, 0.8)
+	tween.tween_property(lbl, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(lbl.queue_free)
+	if shake_it:
+		var shake_tw = lbl.create_tween().set_loops(6)
+		shake_tw.tween_property(lbl, "position:x", lbl.position.x + 3, 0.03)
+		shake_tw.tween_property(lbl, "position:x", lbl.position.x - 3, 0.03)
+		CombatJuice.shake(get_viewport().get_camera_2d(), 5.0, 0.2)
+
+func _finisher_orange_pulse():
+	# Screen-wide orange pulse for combo finishers
+	var hud = get_tree().root.get_node_or_null("TestArena/HUD")
+	if not hud:
+		return
+	var pulse = ColorRect.new()
+	pulse.color = Color(1, 0.55, 0.1, 0.35)
+	pulse.size = Vector2(640, 360)
+	pulse.z_index = 3400
+	hud.add_child(pulse)
+	var tween = pulse.create_tween()
+	tween.tween_property(pulse, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(pulse.queue_free)
